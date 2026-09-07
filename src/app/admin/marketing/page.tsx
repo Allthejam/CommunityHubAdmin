@@ -137,22 +137,30 @@ const CopyToClipboardButton = ({ textToCopy, isHtml = false }: { textToCopy: str
 }
 
 const audienceTypes = [
-    "Personal User",
-    "Business Owner",
-    "Community Leader",
-    "Potential Community Leader",
-    "Enterprise Partner",
-    "National Advertiser",
+    "Personal User / Local Resident",
+    "Business Owner / Local Merchant",
+    "Community Leader / Hub Administrator",
+    "Potential Community Leader / Volunteer",
+    "Regional Authority / Multi-Hub Coordinator",
+    "Emergency Services & Civil Protection",
+    "Enterprise Partner / Corporate Sponsor",
+    "National & Regional Advertiser",
+    "Community Groups & Non-Profits",
 ];
 
 const featureTypes = [
-    "General Platform",
-    "Broadcast System",
-    "Virtual Highstreet / Shopping",
+    "General Platform & Community Ecosystem",
+    "Emergency Broadcast System (Local & Multi-Hub)",
+    "Emergency Response Plans & Muster Protocols",
+    "Threat Matrix & Real-Time Risk Assessment",
+    "Regional Multi-Hub Network & Governance",
+    "Virtual Highstreet & Local Shopping",
     "Community Leadership Opportunity",
-    "Forum & Chat",
-    "Events & What's On",
-    "News & Reporting",
+    "Forum, Chat & Neighborhood Discussions",
+    "Events, Festivals & What's On",
+    "News, Editorial & Community Reporting",
+    "Skills Directory & Emergency Volunteering",
+    "Interactive Community Maps & Safety Hubs",
 ];
 
 export default function MarketingPage() {
@@ -168,8 +176,8 @@ export default function MarketingPage() {
     const [isSaving, setIsSaving] = React.useState(false);
     const [viewingCampaign, setViewingCampaign] = React.useState<MarketingCampaign | null>(null);
     
-    const [audience, setAudience] = React.useState('Personal User');
-    const [feature, setFeature] = React.useState('General Platform');
+    const [audience, setAudience] = React.useState('Personal User / Local Resident');
+    const [feature, setFeature] = React.useState('General Platform & Community Ecosystem');
 
     const db = useFirestore();
     const campaignsQuery = useMemoFirebase(() => db ? collection(db, 'marketing_campaigns') : null, [db]);
@@ -244,8 +252,8 @@ export default function MarketingPage() {
         setBody('');
         setSocialMediaPost('');
         setCoverImageUrl(null);
-        setAudience('Personal User');
-        setFeature('General Platform');
+        setAudience('Personal User / Local Resident');
+        setFeature('General Platform & Community Ecosystem');
         formRef.current?.reset();
     };
 
@@ -322,7 +330,7 @@ export default function MarketingPage() {
                          <div className="grid md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <Label htmlFor="audience">Target Audience</Label>
-                                <Select defaultValue={audience} onValueChange={setAudience}>
+                                <Select value={audience} onValueChange={setAudience}>
                                     <SelectTrigger id="audience" className="h-11">
                                         <SelectValue placeholder="Select an audience..." />
                                     </SelectTrigger>
@@ -336,7 +344,7 @@ export default function MarketingPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="feature">Feature focus</Label>
-                                <Select defaultValue={feature} onValueChange={setFeature}>
+                                <Select value={feature} onValueChange={setFeature}>
                                     <SelectTrigger id="feature" className="h-11">
                                         <SelectValue placeholder="Select a feature..." />
                                     </SelectTrigger>

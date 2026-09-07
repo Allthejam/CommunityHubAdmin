@@ -30,16 +30,27 @@ const marketingPrompt = ai.definePrompt({
   model: 'googleai/gemini-2.5-flash',
   input: { schema: GenerateMarketingCopyInputSchema },
   output: { schema: GenerateMarketingCopyOutputSchema },
-  prompt: `You are a creative marketing expert for the community platform "Local Pulse".
+  prompt: `You are a high-level creative brand and marketing strategist for "Community Hub" (also referred to as Local Pulse), a comprehensive next-generation civic, emergency, and local commerce ecosystem.
       
-  Generate highly engaging marketing copy based on the following:
-  - Target Audience: {{{audience}}}
-  - Feature to Promote: {{{feature}}}
+  Generate compelling, authoritative, and conversion-focused marketing copy tailored specifically to the target audience and platform feature focus.
 
-  Please provide:
-  1. A catchy, high-impact headline.
-  2. Professional body text in clean HTML (use <p> and <strong> tags).
-  3. A short, punchy social media post.`,
+  Context & Platform Architecture:
+  - Target Audience: {{{audience}}}
+  - Feature Focus: {{{feature}}}
+
+  Platform Capability Reference for Copy Inspiration:
+  - Regional Governance & Multi-Hub Operations: Tier-1 regional command, cross-community alerting, emergency multi-hub coordination, and county/park authority oversight.
+  - Threat Matrix & Incident Severity: Proactive threat monitoring, matrix scoring, environmental/civil alert tiers, and rapid-response situational awareness.
+  - Emergency Preparedness Plans & Muster Protocols: Local emergency readiness, emergency muster points, vulnerable resident assistance, and decentralized crisis response.
+  - Emergency Broadcast System: Localized and multi-hub real-time dispatches with cryptographic audit trails and verified sender validation.
+  - Virtual Highstreet & Local Commerce: Hyper-local shopping, business showcases, footfall regeneration, and local merchant growth.
+  - Community Leadership & Civic Stewardship: Empowering local champions to run hubs, manage moderation, and foster strong neighborhood bonds.
+  - Forum, Events & News: Authentic local discussions, community calendars, grassroots reporting, and verified local journalism.
+
+  Requirements for Generated Content:
+  1. Headline: High-impact, catchy, and professional (no generic fluff).
+  2. Body Text: Persuasive, clear, and structured in clean HTML (use <p>, <strong>, and <ul>/<li> where beneficial). Highlight real-world benefits for the specific audience.
+  3. Social Media Post: Punchy, shareable copy with 2-4 strategic hashtags.`,
 });
 
 const generateMarketingCopyFlow = ai.defineFlow(

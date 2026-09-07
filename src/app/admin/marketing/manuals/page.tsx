@@ -58,6 +58,7 @@ const accountTypes = [
     { type: 'personal', title: 'Personal Users', icon: Youtube },
     { type: 'business', title: 'Business Owners', icon: Youtube },
     { type: 'leader', title: 'Community Leaders', icon: Youtube },
+    { type: 'regional', title: 'Regional Authorities', icon: Youtube },
     { type: 'enterprise', title: 'Enterprise Partners', icon: Youtube },
     { type: 'national', title: 'National Advertisers', icon: Youtube },
 ];
