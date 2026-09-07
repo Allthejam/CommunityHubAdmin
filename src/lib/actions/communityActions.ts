@@ -425,3 +425,146 @@ function serializeData(data: any): any {
     return serialized;
 }
 
+export interface PublicRegionalNetworkData {
+    id: string;
+    name: string;
+    region?: string;
+    state?: string;
+    country?: string;
+    boundary: string;
+    isLocked?: boolean;
+    type: 'regional';
+    authorityType?: string;
+    organizationName?: string;
+    contactEmail?: string;
+    memberCount?: number;
+    communityCount?: number;
+}
+
+export async function runGetAllRegionalNetworks(): Promise<{ success: boolean; data: PublicRegionalNetworkData[]; error?: string }> {
+    try {
+        const { firestore } = initializeAdminApp();
+        
+        // 1. Fetch from 'users' with accountType == 'regional'
+        const usersPromise = firestore.collection('users').where('accountType', '==', 'regional').get();
+        // 2. Also check if there is a 'regional_networks' collection
+        const regColPromise = firestore.collection('regional_networks').get().catch(() => null);
+
+        const [userSnap, regColSnap] = await Promise.all([usersPromise, regColPromise]);
+
+        const networks: PublicRegionalNetworkData[] = [];
+        const seenIds = new Set<string>();
+
+        userSnap.docs.forEach(doc => {
+            const data = doc.data();
+            const rawBoundary = data.regionalBoundary || data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+            if (rawBoundary) {
+                let boundaryStr = '';
+                if (typeof rawBoundary === 'string') {
+                    boundaryStr = rawBoundary;
+                } else if (typeof rawBoundary === 'object') {
+                    boundaryStr = JSON.stringify(rawBoundary);
+                }
+
+                if (boundaryStr && !seenIds.has(doc.id)) {
+                    seenIds.add(doc.id);
+                    networks.push({
+                        id: doc.id,
+                        name: data.organizationName || data.businessName || data.displayName || data.name || 'Regional Authority Network',
+                        region: data.region || data.state || '',
+                        state: data.state || '',
+                        country: data.country || 'United Kingdom',
+                        boundary: boundaryStr,
+                        isLocked: Boolean(data.isLocked),
+                        type: 'regional',
+                        organizationName: data.organizationName || data.businessName,
+                        contactEmail: data.email || data.contactEmail,
+                    });
+                }
+            }
+        });
+
+        if (regColSnap && !regColSnap.empty) {
+            regColSnap.docs.forEach(doc => {
+                const data = doc.data();
+                const rawBoundary = data.regionalBoundary || data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+                if (rawBoundary && !seenIds.has(doc.id)) {
+                    let boundaryStr = '';
+                    if (typeof rawBoundary === 'string') {
+                        boundaryStr = rawBoundary;
+                    } else if (typeof rawBoundary === 'object') {
+                        boundaryStr = JSON.stringify(rawBoundary);
+                    }
+
+                    if (boundaryStr) {
+                        seenIds.add(doc.id);
+                        networks.push({
+                            id: doc.id,
+                            name: data.name || data.organizationName || 'Regional Authority',
+                            region: data.region || data.state || '',
+                            state: data.state || '',
+                            country: data.country || 'United Kingdom',
+                            boundary: boundaryStr,
+                            isLocked: Boolean(data.isLocked),
+                            type: 'regional',
+                            organizationName: data.organizationName,
+                            contactEmail: data.email || data.contactEmail,
+                        });
+                    }
+                }
+            });
+        }
+
+        return { success: true, data: networks };
+    } catch (error: any) {
+        console.error("Error fetching regional networks:", error);
+        return { success: false, data: [], error: error.message || 'Failed to fetch regional networks' };
+    }
+}
+
+export async function runSaveRegionalBoundary(params: { networkId: string; geoJsonString: string }): Promise<ActionResponse> {
+    try {
+        const { firestore } = initializeAdminApp();
+        const userRef = firestore.collection('users').doc(params.networkId);
+        const userDoc = await userRef.get();
+        if (userDoc.exists) {
+            await userRef.update({ 
+                regionalBoundary: params.geoJsonString, 
+                boundary: params.geoJsonString, 
+                updatedAt: Timestamp.now() 
+            });
+            return { success: true };
+        }
+
+        const regRef = firestore.collection('regional_networks').doc(params.networkId);
+        await regRef.set({ 
+            boundary: params.geoJsonString, 
+            regionalBoundary: params.geoJsonString, 
+            updatedAt: Timestamp.now() 
+        }, { merge: true });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error saving regional boundary:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function runToggleRegionalLock(params: { networkId: string; isLocked: boolean }): Promise<ActionResponse> {
+    try {
+        const { firestore } = initializeAdminApp();
+        const userRef = firestore.collection('users').doc(params.networkId);
+        const userDoc = await userRef.get();
+        if (userDoc.exists) {
+            await userRef.update({ isLocked: params.isLocked, updatedAt: Timestamp.now() });
+            return { success: true };
+        }
+
+        const regRef = firestore.collection('regional_networks').doc(params.networkId);
+        await regRef.set({ isLocked: params.isLocked, updatedAt: Timestamp.now() }, { merge: true });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error toggling regional lock:", error);
+        return { success: false, error: error.message };
+    }
+}
+
