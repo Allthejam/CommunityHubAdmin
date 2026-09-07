@@ -480,6 +480,40 @@ export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
             }
         }
 
+        // Also sweep regionalBroadcasts collection for expired broadcasts
+        try {
+            const regSnapshot = await firestore.collection('regionalBroadcasts').get();
+            const staleRegDocs = regSnapshot.docs.filter(doc => {
+                const data = doc.data();
+                const status = (data.status || '').toLowerCase();
+                if (status === 'archived') return false;
+
+                if (data.endDate) {
+                    const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
+                    if (endDate && !isNaN(endDate.getTime()) && endDate < now) return true;
+                }
+                if (!data.endDate && data.createdAt) {
+                    const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                    if (createdAt && !isNaN(createdAt.getTime()) && createdAt < cutoffDate) return true;
+                }
+                return false;
+            });
+
+            for (const doc of staleRegDocs) {
+                currentBatch.update(doc.ref, {
+                    status: 'Archived',
+                    updatedAt: Timestamp.now()
+                });
+                totalUpdated++;
+                if (totalUpdated % batchSize === 0) {
+                    await currentBatch.commit();
+                    currentBatch = firestore.batch();
+                }
+            }
+        } catch (regErr) {
+            console.warn("[Maintenance] Regional broadcasts sweep skipped or empty:", regErr);
+        }
+
         if (totalUpdated % batchSize !== 0) {
             await currentBatch.commit();
         }

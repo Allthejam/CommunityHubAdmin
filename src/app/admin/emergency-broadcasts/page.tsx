@@ -465,16 +465,17 @@ export default function AdminEmergencyPage() {
 
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    const senderUser = usersMap.get(data.ownerId || data.userId);
+                    const senderId = data.ownerId || data.userId || data.creatorId;
+                    const senderUser = usersMap.get(senderId);
 
                     // Check if sender is a Regional Network Account
                     const isRegional = 
                         data.scope === 'regional' || 
                         data.isRegional === true || 
+                        data.isRegionalNetwork === true ||
                         data.authorAccountType === 'regional' || 
                         senderUser?.accountType === 'regional' ||
-                        (Array.isArray(data.targetCommunityIds) && data.targetCommunityIds.length > 1 && data.scope !== 'platform') ||
-                        (Array.isArray(data.audience?.communities) && data.audience.communities.length > 1 && data.scope !== 'platform');
+                        (Array.isArray(data.targetCommunityIds) && data.targetCommunityIds.length > 0 && (data.isRegionalNetwork || data.scope === 'regional' || senderUser?.accountType === 'regional'));
 
                     // Resolve target community names
                     let targetCommunityIdsList: string[] = [];
@@ -500,10 +501,24 @@ export default function AdminEmergencyPage() {
 
                     const regionalAuthorityName = 
                         data.organizationName || 
+                        data.creator ||
                         senderUser?.organizationName || 
                         senderUser?.businessName || 
                         data.sentBy || 
                         'Regional Network Authority';
+
+                    let scheduledDatesDisplay = data.scheduledDates;
+                    if (scheduledDatesDisplay === 'Active') {
+                        scheduledDatesDisplay = 'Immediate Dispatch';
+                    } else if (!scheduledDatesDisplay) {
+                        if (data.startDate && data.endDate) {
+                            scheduledDatesDisplay = `${format(data.startDate.toDate(), "PPP")} - ${format(data.endDate.toDate(), "PPP")}`;
+                        } else if (data.createdAt?.toDate) {
+                            scheduledDatesDisplay = format(data.createdAt.toDate(), "PPP");
+                        } else {
+                            scheduledDatesDisplay = 'Immediate Dispatch';
+                        }
+                    }
 
                     const announcement = {
                         id: doc.id,
@@ -513,7 +528,7 @@ export default function AdminEmergencyPage() {
                         targetCommunityNames,
                         targetCommunityIdsList,
                         communityName: communityName,
-                        scheduledDates: data.scheduledDates || (data.startDate && data.endDate ? `${format(data.startDate.toDate(), "PPP")} - ${format(data.endDate.toDate(), "PPP")}` : (data.createdAt ? format(data.createdAt.toDate(), "PPP") : 'N/A')),
+                        scheduledDates: scheduledDatesDisplay,
                     } as EnrichedAnnouncement;
 
                     if (isStale(announcement)) {
@@ -548,12 +563,19 @@ export default function AdminEmergencyPage() {
 
   const handleCancel = React.useCallback(async (announcementId: string) => {
     if (!db || !user) return;
-    const announcementRef = doc(db, 'announcements', announcementId);
     try {
+        const announcementRef = doc(db, 'announcements', announcementId);
         await updateDoc(announcementRef, { 
             status: "Archived",
             history: viewingAnnouncement?.history ? [...viewingAnnouncement.history, { status: "Archived", actorId: user.uid, timestamp: new Date() }] : [{ status: "Archived", actorId: user.uid, timestamp: new Date() }]
         });
+
+        // Also update corresponding regionalBroadcasts document if present
+        try {
+            const regionalRef = doc(db, 'regionalBroadcasts', announcementId);
+            await updateDoc(regionalRef, { status: "Archived" });
+        } catch (_) {}
+
         toast({ title: "Broadcast Archived", description: `Record moved to historical archive.`});
     } catch (error) {
         console.error("Error archiving broadcast:", error);
