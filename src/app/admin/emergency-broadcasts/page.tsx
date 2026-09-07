@@ -44,6 +44,7 @@ import {
 } from "lucide-react"
 import { collection, query, onSnapshot, doc, updateDoc, getDocs, getDoc } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
+import { printForensicAuditReport } from "@/lib/utils/printForensicReport";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -579,14 +580,9 @@ export default function AdminEmergencyPage() {
   };
 
   const handlePrintForensicReport = () => {
-    document.body.classList.add('printing-report');
-    const cleanup = () => {
-      document.body.classList.remove('printing-report');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    window.print();
-    setTimeout(cleanup, 2000);
+    if (viewingAnnouncement) {
+      printForensicAuditReport(viewingAnnouncement);
+    }
   };
   
   const createSortHandler = (

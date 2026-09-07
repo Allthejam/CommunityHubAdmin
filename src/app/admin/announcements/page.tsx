@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
+import { printForensicAuditReport } from "@/lib/utils/printForensicReport";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -473,14 +474,9 @@ export default function AdminAnnouncementsPage() {
   }
 
   const handlePrintForensicReport = () => {
-    document.body.classList.add('printing-report');
-    const cleanup = () => {
-      document.body.classList.remove('printing-report');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    window.print();
-    setTimeout(cleanup, 2000);
+    if (viewingAnnouncement) {
+      printForensicAuditReport(viewingAnnouncement);
+    }
   };
 
   // Helper for dynamic box colors
