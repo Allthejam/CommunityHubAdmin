@@ -577,6 +577,17 @@ export default function AdminEmergencyPage() {
         setIsCleaning(false);
     }
   };
+
+  const handlePrintForensicReport = () => {
+    document.body.classList.add('printing-report');
+    const cleanup = () => {
+      document.body.classList.remove('printing-report');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+    setTimeout(cleanup, 2000);
+  };
   
   const createSortHandler = (
     setter: React.Dispatch<React.SetStateAction<{ key: keyof EnrichedAnnouncement; order: 'asc' | 'desc' }>>
@@ -1118,7 +1129,7 @@ export default function AdminEmergencyPage() {
                         Permanent Platform Forensic Communication Log &bull; System Verified
                     </DialogDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => window.print()} className="shrink-0 gap-2 font-bold uppercase tracking-tighter text-xs shadow-sm bg-white no-print">
+                <Button variant="outline" size="sm" onClick={handlePrintForensicReport} className="shrink-0 gap-2 font-bold uppercase tracking-tighter text-xs shadow-sm bg-white no-print">
                     <Printer className="h-3.5 w-3.5" /> Print Forensic Report
                 </Button>
             </DialogHeader>
@@ -1256,7 +1267,7 @@ export default function AdminEmergencyPage() {
                                 </div>
                             </section>
 
-                            <section className="pt-4">
+                            <section className="pt-4 no-print">
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="raw-json" className="border-none">
                                         <AccordionTrigger className="bg-slate-900 text-white p-4 rounded-xl hover:no-underline">

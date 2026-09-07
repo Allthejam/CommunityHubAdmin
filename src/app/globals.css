@@ -279,17 +279,107 @@
 
 @layer utilities {
   @media print {
+    /* 1. Hide interactive elements, headers, footers, sidebars and controls */
     header,
     footer,
-    .no-print {
+    nav,
+    aside,
+    .no-print,
+    button:not(.print-visible),
+    [data-radix-scroll-area-scrollbar],
+    [data-radix-dialog-close],
+    .no-print * {
       display: none !important;
     }
+
+    /* 2. When printing a modal report, hide the main page background tables */
+    body.printing-report main,
+    body:has([role="dialog"]) > main,
+    body:has([role="dialog"]) > div:first-child > main {
+      display: none !important;
+    }
+
+    /* 3. Hide dark modal overlay backdrop */
+    [data-radix-dialog-overlay],
+    .fixed.inset-0.bg-black\/80,
+    .fixed.inset-0.bg-background\/80 {
+      display: none !important;
+    }
+
+    /* 4. Reset page viewport and background */
+    html,
+    body {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      height: auto !important;
+      min-height: auto !important;
+      overflow: visible !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
     main {
       padding: 0 !important;
       margin: 0 !important;
     }
-    body {
-      background-color: white !important;
+
+    /* 5. Ensure Radix Portal container and wrappers are visible in flow */
+    [data-radix-portal],
+    [data-radix-portal] > div {
+      position: static !important;
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      background: transparent !important;
+    }
+
+    /* 6. Transform Dialog into a clean, unconstrained document flow */
+    [role="dialog"] {
+      position: static !important;
+      transform: none !important;
+      inset: auto !important;
+      top: auto !important;
+      left: auto !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      max-height: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      display: block !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
+
+    /* 7. Expand Radix ScrollArea viewport so inner scrollbar is removed and entire content flows smoothly */
+    [data-radix-scroll-area-viewport],
+    [data-radix-scroll-area-viewport] > div {
+      display: block !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+      width: 100% !important;
+    }
+
+    /* 8. Clean section flow without awkward breaks */
+    section,
+    .card,
+    [data-slot="card"] {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    @page {
+      size: auto;
+      margin: 12mm 15mm 12mm 15mm;
     }
   }
 }
