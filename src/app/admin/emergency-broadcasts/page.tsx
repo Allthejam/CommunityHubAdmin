@@ -37,6 +37,10 @@ import {
     RotateCw,
     Trash2,
     FilterX,
+    Building2,
+    Shield,
+    Radio,
+    Layers,
 } from "lucide-react"
 import { collection, query, onSnapshot, doc, updateDoc, getDocs, getDoc } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
@@ -74,6 +78,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { type Announcement } from "@/lib/announcement-data";
 import { useToast } from "@/hooks/use-toast";
@@ -86,7 +91,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { runAnnouncementCleanupAction } from "@/lib/actions/announcementActions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const GeographicalPath = ({ audience }: { audience: any }) => {
+export interface EnrichedAnnouncement extends Announcement {
+    isRegional?: boolean;
+    regionalAuthorityName?: string;
+    targetCommunityNames?: string[];
+    targetCommunityIdsList?: string[];
+}
+
+const GeographicalPath = ({ audience, targetCommunityNames }: { audience: any; targetCommunityNames?: string[] }) => {
     const db = useFirestore();
     const [resolvedPaths, setResolvedPaths] = React.useState<{path: string, ids: string}[]>([]);
     const [loading, setLoading] = React.useState(false);
@@ -117,7 +129,9 @@ const GeographicalPath = ({ audience }: { audience: any }) => {
                     const snap = await getDoc(doc(db, 'locations', id));
                     if (snap.exists()) { parts.push(snap.data().name); ids.push(id); }
                 }
-                if (audience.communities?.length > 0) {
+                if (targetCommunityNames && targetCommunityNames.length > 0) {
+                    parts.push(`[${targetCommunityNames.join(', ')}]`);
+                } else if (audience.communities?.length > 0) {
                     const names: string[] = [];
                     for (const cid of audience.communities) {
                         const snap = await getDoc(doc(db, 'communities', cid));
@@ -144,7 +158,7 @@ const GeographicalPath = ({ audience }: { audience: any }) => {
         };
 
         resolve();
-    }, [audience, db]);
+    }, [audience, db, targetCommunityNames]);
 
     if (audience?.type === 'all') return <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-black uppercase text-[10px] h-7">Platform-Wide Dispatch</Badge>;
     if (audience?.type === 'roles') return (
@@ -170,7 +184,7 @@ const GeographicalPath = ({ audience }: { audience: any }) => {
     );
 }
 
-const getTypeBadge = (announcement: Announcement) => {
+const getTypeBadge = (announcement: EnrichedAnnouncement) => {
     if (announcement.type === 'Standard' && announcement.severity === 'urgent') {
       return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border-amber-200">Urgent</Badge>;
     }
@@ -191,9 +205,69 @@ const getStatusBadge = (status: Announcement['status']) => {
     return <Badge className={cn(statusStyles[status])}>{status}</Badge>;
 }
 
-const AnnouncementRow = React.memo(({ announcement, onView, onCancel, isStale }: {
-    announcement: Announcement;
-    onView: (announcement: Announcement) => void;
+/**
+ * Renders target community badges with expandable popover if multiple communities are selected
+ */
+const TargetCommunitiesCell = ({ communities }: { communities?: string[] }) => {
+    if (!communities || communities.length === 0) {
+        return <span className="text-xs text-muted-foreground italic">All Boundary Hubs</span>;
+    }
+
+    if (communities.length <= 2) {
+        return (
+            <div className="flex flex-wrap gap-1">
+                {communities.map((name, i) => (
+                    <Badge key={i} variant="outline" className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-[11px] font-semibold">
+                        <MapPin className="h-3 w-3 mr-1 text-emerald-500" />
+                        {name}
+                    </Badge>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-[11px] font-semibold">
+                <MapPin className="h-3 w-3 mr-1 text-emerald-500" />
+                {communities[0]}
+            </Badge>
+            <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-[11px] font-semibold">
+                <MapPin className="h-3 w-3 mr-1 text-emerald-500" />
+                {communities[1]}
+            </Badge>
+            
+            <Popover>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-5 px-1.5 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200" onClick={(e) => e.stopPropagation()}>
+                        +{communities.length - 2} more
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-3 shadow-xl border-2" align="start" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-2">
+                        <p className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                            <Building2 className="h-3.5 w-3.5" />
+                            Targeted Communities ({communities.length})
+                        </p>
+                        <div className="max-h-48 overflow-y-auto space-y-1 divide-y">
+                            {communities.map((name, i) => (
+                                <div key={i} className="pt-1 first:pt-0 text-xs font-medium flex items-center gap-1.5 text-foreground">
+                                    <MapPin className="h-3 w-3 text-emerald-500 shrink-0" />
+                                    <span>{name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </PopoverContent>
+            </Popover>
+        </div>
+    );
+};
+
+// Standard Community Broadcast Row
+const CommunityAnnouncementRow = React.memo(({ announcement, onView, onCancel, isStale }: {
+    announcement: EnrichedAnnouncement;
+    onView: (announcement: EnrichedAnnouncement) => void;
     onCancel: (id: string) => void;
     isStale: boolean;
 }) => {
@@ -214,15 +288,15 @@ const AnnouncementRow = React.memo(({ announcement, onView, onCancel, isStale }:
             <TableCell className="table-cell font-medium" data-label="Subject">
                 <div className="flex items-center gap-2">
                     {isStale && <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" title="Stale content: older than 14 days with no expiry date" />}
-                    {announcement.subject.length > 40 ? announcement.subject.substring(0, 40) + "..." : announcement.subject}
+                    <span className="font-bold text-foreground">{announcement.subject.length > 40 ? announcement.subject.substring(0, 40) + "..." : announcement.subject}</span>
                 </div>
             </TableCell>
             <TableCell className="table-cell" data-label="Type">{getTypeBadge(announcement)}</TableCell>
-            <TableCell className="table-cell" data-label="Community">{announcement.communityName || 'Platform'}</TableCell>
+            <TableCell className="table-cell font-semibold" data-label="Community">{announcement.communityName || 'Platform-Wide'}</TableCell>
             <TableCell className="table-cell" data-label="Audience">{getAudienceSummary()}</TableCell>
             <TableCell className="table-cell" data-label="Status">{getStatusBadge(announcement.status)}</TableCell>
-            <TableCell className="table-cell" data-label="Scheduled Dates">{announcement.scheduledDates}</TableCell>
-            <TableCell className="table-cell" data-label="Sent By">{announcement.sentBy}</TableCell>
+            <TableCell className="table-cell text-xs font-mono" data-label="Scheduled Dates">{announcement.scheduledDates}</TableCell>
+            <TableCell className="table-cell text-xs" data-label="Sent By">{announcement.sentBy}</TableCell>
             <TableCell className="table-cell text-right" data-label="Actions" onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -253,24 +327,102 @@ const AnnouncementRow = React.memo(({ announcement, onView, onCancel, isStale }:
         </TableRow>
     )
 });
-AnnouncementRow.displayName = "AnnouncementRow";
+CommunityAnnouncementRow.displayName = "CommunityAnnouncementRow";
+
+// Dedicated Regional Announcement Row
+const RegionalAnnouncementRow = React.memo(({ announcement, onView, onCancel, isStale }: {
+    announcement: EnrichedAnnouncement;
+    onView: (announcement: EnrichedAnnouncement) => void;
+    onCancel: (id: string) => void;
+    isStale: boolean;
+}) => {
+    const isArchived = announcement.status === 'Archived';
+    const targetCount = announcement.targetCommunityNames?.length || 0;
+
+    return (
+        <TableRow className={cn("table-row hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors cursor-context-menu", isStale && "bg-amber-50/50 hover:bg-amber-100/50")} onClick={() => onView(announcement)}>
+            <TableCell className="table-cell" data-label="Select" onClick={(e) => e.stopPropagation()}><Checkbox /></TableCell>
+            <TableCell className="table-cell font-medium" data-label="Subject">
+                <div className="flex items-center gap-2">
+                    {isStale && <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" title="Stale content: older than 14 days with no expiry date" />}
+                    <span className="font-bold text-indigo-950 dark:text-indigo-200">
+                        {announcement.subject.length > 38 ? announcement.subject.substring(0, 38) + "..." : announcement.subject}
+                    </span>
+                </div>
+            </TableCell>
+            <TableCell className="table-cell" data-label="Type">{getTypeBadge(announcement)}</TableCell>
+            <TableCell className="table-cell" data-label="Regional Authority">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-700 dark:text-indigo-300">
+                    <Shield className="h-3.5 w-3.5 shrink-0 text-indigo-600" />
+                    <span className="truncate">{announcement.regionalAuthorityName || announcement.sentBy || 'Regional Network'}</span>
+                </div>
+            </TableCell>
+            <TableCell className="table-cell" data-label="Target Communities">
+                <TargetCommunitiesCell communities={announcement.targetCommunityNames} />
+            </TableCell>
+            <TableCell className="table-cell" data-label="Scope & Reach">
+                <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 font-bold text-[10px]">
+                    <Radio className="h-3 w-3 mr-1" />
+                    {targetCount > 0 ? `${targetCount} Local Hub${targetCount > 1 ? 's' : ''}` : "All Member Hubs"}
+                </Badge>
+            </TableCell>
+            <TableCell className="table-cell" data-label="Status">{getStatusBadge(announcement.status)}</TableCell>
+            <TableCell className="table-cell text-xs font-mono" data-label="Scheduled Dates">{announcement.scheduledDates}</TableCell>
+            <TableCell className="table-cell text-xs" data-label="Sent By">{announcement.sentBy}</TableCell>
+            <TableCell className="table-cell text-right" data-label="Actions" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <span className="sr-only">Open menu</span>
+                        <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => onView(announcement)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Audit Record
+                        </DropdownMenuItem>
+                        {!isArchived && <DropdownMenuSeparator />}
+                        {!isArchived && (
+                            <DropdownMenuItem
+                                onClick={() => onCancel(announcement.id)}
+                                className="text-amber-600 focus:bg-amber-100 focus:text-amber-700 dark:text-amber-400 dark:focus:bg-amber-900/50 dark:focus:text-amber-300"
+                            >
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Archive Broadcast
+                            </DropdownMenuItem>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </TableCell>
+        </TableRow>
+    );
+});
+RegionalAnnouncementRow.displayName = "RegionalAnnouncementRow";
 
 
 export default function AdminEmergencyPage() {
-  const [announcements, setAnnouncements] = React.useState<Announcement[]>([]);
+  const [announcements, setAnnouncements] = React.useState<EnrichedAnnouncement[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [isCleaning, setIsCleaning] = React.useState(false);
   const [staleCount, setStaleCount] = React.useState(0);
-  const [viewingAnnouncement, setViewingAnnouncement] = React.useState<Announcement | null>(null);
+  const [viewingAnnouncement, setViewingAnnouncement] = React.useState<EnrichedAnnouncement | null>(null);
   const [showStaleOnly, setShowStaleOnly] = React.useState(false);
   const { user } = useUser();
   const { toast } = useToast();
   const db = useFirestore();
   
-  const [liveSorting, setLiveSorting] = React.useState<{ key: keyof Announcement; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
-  const [livePagination, setLivePagination] = React.useState({ pageIndex: 0, pageSize: 10 });
+  // Sorting & Pagination for Community table
+  const [commSorting, setCommSorting] = React.useState<{ key: keyof EnrichedAnnouncement; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
+  const [commPagination, setCommPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
+
+  // Sorting & Pagination for Regional table
+  const [regSorting, setRegSorting] = React.useState<{ key: keyof EnrichedAnnouncement; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
+  const [regPagination, setRegPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
   
-  const [archivedSorting, setArchivedSorting] = React.useState<{ key: keyof Announcement; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
+  // Sorting & Pagination for Archive table
+  const [archivedSorting, setArchivedSorting] = React.useState<{ key: keyof EnrichedAnnouncement; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
   const [archivedPagination, setArchivedPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
 
   const getStaleCutoff = React.useMemo(() => subDays(new Date(), 14), []);
@@ -290,31 +442,78 @@ export default function AdminEmergencyPage() {
     const fetchInitialData = async () => {
         setLoading(true);
         try {
+            // 1. Fetch communities and build map
             const communitiesSnapshot = await getDocs(collection(db, "communities"));
             const communitiesMap = new Map<string, string>();
             communitiesSnapshot.forEach(doc => {
                 communitiesMap.set(doc.id, doc.data().name);
             });
 
+            // 2. Fetch users to identify regional authority senders
+            const usersSnapshot = await getDocs(collection(db, "users"));
+            const usersMap = new Map<string, any>();
+            usersSnapshot.forEach(doc => {
+                usersMap.set(doc.id, doc.data());
+            });
+
+            // 3. Listen to announcements collection
             const announcementsQuery = query(collection(db, "announcements"));
             const unsubscribe = onSnapshot(announcementsQuery, (snapshot) => {
-                const allAnnouncements: Announcement[] = [];
+                const allAnnouncements: EnrichedAnnouncement[] = [];
                 let identifiedStale = 0;
 
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    let communityName: string | undefined;
+                    const senderUser = usersMap.get(data.ownerId || data.userId);
 
+                    // Check if sender is a Regional Network Account
+                    const isRegional = 
+                        data.scope === 'regional' || 
+                        data.isRegional === true || 
+                        data.authorAccountType === 'regional' || 
+                        senderUser?.accountType === 'regional' ||
+                        (Array.isArray(data.targetCommunityIds) && data.targetCommunityIds.length > 1 && data.scope !== 'platform') ||
+                        (Array.isArray(data.audience?.communities) && data.audience.communities.length > 1 && data.scope !== 'platform');
+
+                    // Resolve target community names
+                    let targetCommunityIdsList: string[] = [];
+                    if (Array.isArray(data.targetCommunityIds) && data.targetCommunityIds.length > 0) {
+                        targetCommunityIdsList = data.targetCommunityIds;
+                    } else if (Array.isArray(data.audience?.communities) && data.audience.communities.length > 0) {
+                        targetCommunityIdsList = data.audience.communities;
+                    } else if (data.communityId) {
+                        targetCommunityIdsList = [data.communityId];
+                    }
+
+                    const targetCommunityNames = targetCommunityIdsList
+                        .map(cid => communitiesMap.get(cid) || `Hub [${cid.substring(0, 5)}]`);
+
+                    let communityName: string | undefined;
                     if (data.scope === 'community' && data.communityId) {
                         communityName = communitiesMap.get(data.communityId) || "Unknown Community";
+                    } else if (targetCommunityNames.length === 1) {
+                        communityName = targetCommunityNames[0];
+                    } else if (targetCommunityNames.length > 1) {
+                        communityName = `${targetCommunityNames.length} Communities`;
                     }
+
+                    const regionalAuthorityName = 
+                        data.organizationName || 
+                        senderUser?.organizationName || 
+                        senderUser?.businessName || 
+                        data.sentBy || 
+                        'Regional Network Authority';
 
                     const announcement = {
                         id: doc.id,
                         ...data,
+                        isRegional,
+                        regionalAuthorityName,
+                        targetCommunityNames,
+                        targetCommunityIdsList,
                         communityName: communityName,
                         scheduledDates: data.scheduledDates || (data.startDate && data.endDate ? `${format(data.startDate.toDate(), "PPP")} - ${format(data.endDate.toDate(), "PPP")}` : (data.createdAt ? format(data.createdAt.toDate(), "PPP") : 'N/A')),
-                    } as Announcement;
+                    } as EnrichedAnnouncement;
 
                     if (isStale(announcement)) {
                         identifiedStale++;
@@ -322,6 +521,7 @@ export default function AdminEmergencyPage() {
 
                     allAnnouncements.push(announcement);
                 });
+
                 setAnnouncements(allAnnouncements);
                 setStaleCount(identifiedStale);
                 setLoading(false);
@@ -343,7 +543,7 @@ export default function AdminEmergencyPage() {
 
   }, [user, db, toast, isStale]);
   
-  const handleView = React.useCallback((announcement: Announcement) => setViewingAnnouncement(announcement), []);
+  const handleView = React.useCallback((announcement: EnrichedAnnouncement) => setViewingAnnouncement(announcement), []);
 
   const handleCancel = React.useCallback(async (announcementId: string) => {
     if (!db || !user) return;
@@ -379,15 +579,15 @@ export default function AdminEmergencyPage() {
   };
   
   const createSortHandler = (
-    setter: React.Dispatch<React.SetStateAction<{ key: keyof Announcement; order: 'asc' | 'desc' }>>
-  ) => (key: keyof Announcement) => {
+    setter: React.Dispatch<React.SetStateAction<{ key: keyof EnrichedAnnouncement; order: 'asc' | 'desc' }>>
+  ) => (key: keyof EnrichedAnnouncement) => {
     setter(prev => ({
         key,
         order: prev.key === key && prev.order === 'asc' ? 'desc' : 'asc'
     }));
   };
 
-  const sortAnnouncements = (data: Announcement[], sortConfig: { key: keyof Announcement; order: 'asc' | 'desc' }) => {
+  const sortAnnouncements = (data: EnrichedAnnouncement[], sortConfig: { key: keyof EnrichedAnnouncement; order: 'asc' | 'desc' }) => {
     return [...data].sort((a,b) => {
         const valA = (a as any)[sortConfig.key] ?? '';
         const valB = (b as any)[sortConfig.key] ?? '';
@@ -399,23 +599,42 @@ export default function AdminEmergencyPage() {
      });
   };
 
-  const liveAnnouncements = announcements.filter(a => a.status !== 'Archived');
+  // Partition announcements into live community, live regional, and archived
+  const liveCommunityAnnouncements = announcements.filter(a => a.status !== 'Archived' && !a.isRegional);
+  const liveRegionalAnnouncements = announcements.filter(a => a.status !== 'Archived' && a.isRegional);
   const archivedAnnouncements = announcements.filter(a => a.status === 'Archived');
   
-  const filteredLiveAnnouncements = React.useMemo(() => {
-      let filtered = liveAnnouncements;
+  // Filtered Community Announcements
+  const filteredCommunityAnnouncements = React.useMemo(() => {
+      let filtered = liveCommunityAnnouncements;
       if (showStaleOnly) {
           filtered = filtered.filter(isStale);
       }
-      return sortAnnouncements(filtered, liveSorting);
-  }, [liveAnnouncements, liveSorting, showStaleOnly, isStale]);
+      return sortAnnouncements(filtered, commSorting);
+  }, [liveCommunityAnnouncements, commSorting, showStaleOnly, isStale]);
 
-  const livePageCount = Math.ceil(filteredLiveAnnouncements.length / livePagination.pageSize);
-  const paginatedLiveAnnouncements = React.useMemo(() => {
-    const start = livePagination.pageIndex * livePagination.pageSize;
-    return filteredLiveAnnouncements.slice(start, start + livePagination.pageSize);
-  }, [filteredLiveAnnouncements, livePagination]);
+  const commPageCount = Math.ceil(filteredCommunityAnnouncements.length / commPagination.pageSize);
+  const paginatedCommunityAnnouncements = React.useMemo(() => {
+    const start = commPagination.pageIndex * commPagination.pageSize;
+    return filteredCommunityAnnouncements.slice(start, start + commPagination.pageSize);
+  }, [filteredCommunityAnnouncements, commPagination]);
 
+  // Filtered Regional Announcements
+  const filteredRegionalAnnouncements = React.useMemo(() => {
+      let filtered = liveRegionalAnnouncements;
+      if (showStaleOnly) {
+          filtered = filtered.filter(isStale);
+      }
+      return sortAnnouncements(filtered, regSorting);
+  }, [liveRegionalAnnouncements, regSorting, showStaleOnly, isStale]);
+
+  const regPageCount = Math.ceil(filteredRegionalAnnouncements.length / regPagination.pageSize);
+  const paginatedRegionalAnnouncements = React.useMemo(() => {
+    const start = regPagination.pageIndex * regPagination.pageSize;
+    return filteredRegionalAnnouncements.slice(start, start + regPagination.pageSize);
+  }, [filteredRegionalAnnouncements, regPagination]);
+
+  // Filtered Archived Announcements
   const filteredArchivedAnnouncements = React.useMemo(() => sortAnnouncements(archivedAnnouncements, archivedSorting), [archivedAnnouncements, archivedSorting]);
   const archivedPageCount = Math.ceil(filteredArchivedAnnouncements.length / archivedPagination.pageSize);
   const paginatedArchivedAnnouncements = React.useMemo(() => {
@@ -428,8 +647,9 @@ export default function AdminEmergencyPage() {
     const list = announcements || [];
     return {
       total: list.length,
+      community: list.filter(a => a.status !== 'Archived' && !a.isRegional).length,
+      regional: list.filter(a => a.status !== 'Archived' && a.isRegional).length,
       live: list.filter(a => a.status === 'Live').length,
-      scheduled: list.filter(a => a.status === 'Scheduled').length,
       emergency: list.filter(a => a.type === 'Emergency').length,
       urgent: list.filter(a => a.type === 'Standard' && a.severity === 'urgent').length,
       archived: list.filter(a => a.status === 'Archived').length,
@@ -490,12 +710,19 @@ export default function AdminEmergencyPage() {
   );
 
   // Helper for dynamic box colors
-  const getAuthorityBoxStyles = (announcement: Announcement) => {
+  const getAuthorityBoxStyles = (announcement: EnrichedAnnouncement) => {
     if (announcement.type === 'Emergency') {
         return {
             container: "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50",
             label: "text-red-700 dark:text-red-400",
             icon: "text-red-500/50"
+        };
+    }
+    if (announcement.isRegional) {
+        return {
+            container: "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-900/50",
+            label: "text-indigo-700 dark:text-indigo-400",
+            icon: "text-indigo-500/50"
         };
     }
     if (announcement.type === 'Standard' && announcement.severity === 'urgent') {
@@ -516,7 +743,7 @@ export default function AdminEmergencyPage() {
     <>
     <div className="space-y-8">
         {/* Emergency Hero Banner */}
-        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-rose-600/15 via-red-600/10 to-amber-600/10 border-2 border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-md relative overflow-hidden">
+        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-rose-600/15 via-indigo-600/10 to-amber-600/10 border-2 border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-md relative overflow-hidden">
             <div>
                 <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black text-xs uppercase tracking-widest mb-1.5">
                     <span className="flex h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping" />
@@ -528,7 +755,7 @@ export default function AdminEmergencyPage() {
                     Global Broadcasts & Emergency Console
                 </h1>
                 <p className="text-muted-foreground text-sm sm:text-base mt-2 max-w-3xl leading-relaxed">
-                    Audit, track, override, and archive critical high-priority dispatches and life-safety alerts deployed across the entire platform ecosystem.
+                    Audit, track, override, and archive critical high-priority dispatches and life-safety alerts deployed across local community hubs and regional networks.
                 </p>
             </div>
              <Card className={cn(
@@ -589,42 +816,42 @@ export default function AdminEmergencyPage() {
                 </CardContent>
             </Card>
 
+            <Card className="border-t-4 border-t-indigo-600 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-3.5">
+                    <div className="flex items-center justify-between pb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Regional Broadcasts</p>
+                        <div className="p-1 rounded-md bg-indigo-600/10 text-indigo-600">
+                            <Shield className="h-3.5 w-3.5" />
+                        </div>
+                    </div>
+                    <div className="text-xl font-black text-indigo-600 dark:text-indigo-400">{emergencyStats.regional}</div>
+                    <p className="text-[9px] text-muted-foreground font-semibold">Multi-hub authority alerts</p>
+                </CardContent>
+            </Card>
+
+            <Card className="border-t-4 border-t-emerald-600 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-3.5">
+                    <div className="flex items-center justify-between pb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Community Broadcasts</p>
+                        <div className="p-1 rounded-md bg-emerald-600/10 text-emerald-600">
+                            <Building2 className="h-3.5 w-3.5" />
+                        </div>
+                    </div>
+                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{emergencyStats.community}</div>
+                    <p className="text-[9px] text-muted-foreground font-semibold">Local town announcements</p>
+                </CardContent>
+            </Card>
+
             <Card className="border-t-4 border-t-red-500 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-3.5">
                     <div className="flex items-center justify-between pb-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Emergencies</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Emergencies / Urgent</p>
                         <div className="p-1 rounded-md bg-red-500/10 text-red-600">
                             <Siren className="h-3.5 w-3.5" />
                         </div>
                     </div>
-                    <div className="text-xl font-black text-red-600 dark:text-red-400">{emergencyStats.emergency}</div>
-                    <p className="text-[9px] text-muted-foreground font-semibold">Public safety alerts</p>
-                </CardContent>
-            </Card>
-
-            <Card className="border-t-4 border-t-amber-500 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-3.5">
-                    <div className="flex items-center justify-between pb-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Urgent Priority</p>
-                        <div className="p-1 rounded-md bg-amber-500/10 text-amber-600">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                        </div>
-                    </div>
-                    <div className="text-xl font-black text-amber-600 dark:text-amber-400">{emergencyStats.urgent}</div>
-                    <p className="text-[9px] text-muted-foreground font-semibold">High-visibility notices</p>
-                </CardContent>
-            </Card>
-
-            <Card className="border-t-4 border-t-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-3.5">
-                    <div className="flex items-center justify-between pb-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active / Live</p>
-                        <div className="p-1 rounded-md bg-blue-500/10 text-blue-600">
-                            <Globe className="h-3.5 w-3.5" />
-                        </div>
-                    </div>
-                    <div className="text-xl font-black text-blue-600 dark:text-blue-400">{emergencyStats.live}</div>
-                    <p className="text-[9px] text-muted-foreground font-semibold">Live across feeds</p>
+                    <div className="text-xl font-black text-red-600 dark:text-red-400">{emergencyStats.emergency + emergencyStats.urgent}</div>
+                    <p className="text-[9px] text-muted-foreground font-semibold">High-priority alerts</p>
                 </CardContent>
             </Card>
 
@@ -642,180 +869,243 @@ export default function AdminEmergencyPage() {
             </Card>
         </div>
 
-        <Card className="border-t-4 border-t-rose-600 shadow-sm">
-            <CardHeader className="bg-gradient-to-r from-rose-600/5 via-transparent to-transparent rounded-t-lg">
-                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <CardTitle className="text-lg font-bold">Broadcast Activity Log</CardTitle>
-                            <CardDescription>
-                                {showStaleOnly ? "Isolating stale content for maintenance review." : "Comprehensive log of all active and scheduled alerts from every administrator."}
-                            </CardDescription>
-                        </div>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary">
-                                    <HelpCircle className="h-5 w-5" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80 shadow-2xl border-2">
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <h4 className="font-black uppercase text-[10px] tracking-widest text-primary flex items-center gap-1.5">
-                                            <ShieldCheck className="h-3 w-3" /> Tier Legend
-                                        </h4>
-                                        <div className="grid gap-2 text-xs">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-blue-100 text-blue-800 h-5 px-1.5 text-[9px] uppercase font-bold">Standard</Badge>
-                                                <span className="text-muted-foreground">General platform updates and news.</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-amber-100 text-amber-800 h-5 px-1.5 text-[9px] uppercase font-bold">Urgent</Badge>
-                                                <span className="text-muted-foreground">Priority notices with visual highlighting.</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-red-100 text-red-800 h-5 px-1.5 text-[9px] uppercase font-bold border-red-200">Emergency</Badge>
-                                                <span className="text-muted-foreground">Critical alerts that override system settings.</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <Separator />
-                                    <div className="space-y-2">
-                                        <h4 className="font-black uppercase text-[10px] tracking-widest text-primary flex items-center gap-1.5">
-                                            <Users className="h-3 w-3" /> Audience Terms
-                                        </h4>
-                                        <div className="grid gap-3 text-xs">
-                                            <div>
-                                                <p className="font-bold text-foreground">Full Platform</p>
-                                                <p className="text-muted-foreground leading-relaxed">Broadcast dispatched to every registered user across the entire ecosystem.</p>
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-foreground">Targeted Roles</p>
-                                                <p className="text-muted-foreground leading-relaxed">Restricted to specific account types (e.g., Leaders or Businesses only).</p>
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-foreground">Targeted Geography</p>
-                                                <p className="text-muted-foreground leading-relaxed">Locked to the jurisdictional route (Country › State › Region › Hub) defined in the audit.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <Separator />
-                                    <div className="space-y-2">
-                                        <h4 className="font-black uppercase text-[10px] tracking-widest text-primary flex items-center gap-1.5">
-                                            <RotateCw className="h-3 w-3" /> Maintenance Rules
-                                        </h4>
-                                        <Alert variant="default" className="bg-background border-dashed p-3">
-                                            <AlertDescription className="text-[10px] leading-relaxed italic">
-                                                Dispatches with <strong>no expiry date</strong> are considered temporary. Items meeting this criteria and older than <strong>14 days</strong> are highlighted in amber.
-                                            </AlertDescription>
-                                        </Alert>
-                                    </div>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="rounded-md border">
-                    <Table className="responsive-table">
-                        <TableHeader className="table-header">
-                            <TableRow>
-                                <TableHead><Checkbox /></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setLiveSorting)('subject')}>Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setLiveSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setLiveSorting)('communityName')}>Community <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setLiveSorting)('audience')}>Audience <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setLiveSorting)('scheduledDates')}>Scheduled <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setLiveSorting)('sentBy')}>Sent By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {paginatedLiveAnnouncements.length > 0 ? (
-                                paginatedLiveAnnouncements.map((announcement) => (
-                                    <AnnouncementRow
-                                        key={announcement.id}
-                                        announcement={announcement}
-                                        onView={handleView}
-                                        onCancel={handleCancel}
-                                        isStale={isStale(announcement)}
-                                    />
-                                ))
-                            ) : (
-                                <TableRow className="table-row">
-                                    <TableCell colSpan={9} className="table-cell h-24 text-center">
-                                        No active broadcasts found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-                 <PaginationControls pagination={livePagination} setPagination={setLivePagination} pageCount={livePageCount} totalRows={filteredLiveAnnouncements.length} />
-            </CardContent>
-        </Card>
+        {/* Dual Tab Console: Community Broadcasts vs Regional Authority Dispatches */}
+        <Tabs defaultValue="regional" className="w-full space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b">
+                <TabsList className="bg-muted p-1 rounded-xl h-11">
+                    <TabsTrigger value="regional" className="gap-2 font-bold text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
+                        <Shield className="h-4 w-4" />
+                        Regional Network Dispatches
+                        <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-white/20 text-current">
+                            {liveRegionalAnnouncements.length}
+                        </Badge>
+                    </TabsTrigger>
+                    
+                    <TabsTrigger value="community" className="gap-2 font-bold text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white transition-all">
+                        <Building2 className="h-4 w-4" />
+                        Local Community Broadcasts
+                        <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-white/20 text-current">
+                            {liveCommunityAnnouncements.length}
+                        </Badge>
+                    </TabsTrigger>
 
-        <Accordion type="single" collapsible className="w-full">
-            <AccordionItem value="item-1">
-                <AccordionTrigger>
-                    <div className="flex items-center gap-2">
-                        <Archive className="h-5 w-5" />
-                        <h3 className="text-lg font-medium">View Archived Broadcasts</h3>
-                    </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Global Broadcast Archive</CardTitle>
-                            <CardDescription>A historical list of all past broadcasts sent by any platform user.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <div className="rounded-md border">
-                                <Table className="responsive-table">
-                                    <TableHeader className="table-header">
-                                        <TableRow>
-                                            <TableHead><Checkbox /></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('subject')}>Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('communityName')}>Community <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('audience')}>Audience <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('scheduledDates')}>Scheduled Dates <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('sentBy')}>Sent By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
+                    <TabsTrigger value="archive" className="gap-2 font-bold text-xs data-[state=active]:bg-slate-800 data-[state=active]:text-white transition-all">
+                        <Archive className="h-4 w-4" />
+                        Archive Log
+                        <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-white/20 text-current">
+                            {archivedAnnouncements.length}
+                        </Badge>
+                    </TabsTrigger>
+                </TabsList>
+
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Regional announcements broadcast to multiple communities inside defined boundaries.</span>
+                </div>
+            </div>
+
+            {/* TAB 1: REGIONAL NETWORK DISPATCHES */}
+            <TabsContent value="regional" className="space-y-4 m-0">
+                <Card className="border-t-4 border-t-indigo-600 shadow-sm">
+                    <CardHeader className="bg-gradient-to-r from-indigo-600/5 via-transparent to-transparent rounded-t-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <CardTitle className="text-lg font-bold flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
+                                    <Shield className="h-5 w-5 text-indigo-600" />
+                                    Regional Authority Multi-Community Broadcasts
+                                </CardTitle>
+                                <CardDescription>
+                                    Announcements dispatched by Regional Authorities (National Parks, Councils, Emergency Services) targeting 1 or multiple communities within their jurisdiction.
+                                </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="border-indigo-300 text-indigo-700 bg-indigo-50 font-bold self-start sm:self-auto">
+                                Multi-Community Boundary Routing
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="rounded-md border">
+                            <Table className="responsive-table">
+                                <TableHeader className="table-header">
+                                    <TableRow>
+                                        <TableHead><Checkbox /></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setRegSorting)('subject')}>Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setRegSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setRegSorting)('regionalAuthorityName')}>Regional Authority <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead>Targeted Communities</TableHead>
+                                        <TableHead>Reach</TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setRegSorting)('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setRegSorting)('scheduledDates')}>Scheduled <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setRegSorting)('sentBy')}>Dispatched By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedRegionalAnnouncements.length > 0 ? (
+                                        paginatedRegionalAnnouncements.map((announcement) => (
+                                            <RegionalAnnouncementRow
+                                                key={announcement.id}
+                                                announcement={announcement}
+                                                onView={handleView}
+                                                onCancel={handleCancel}
+                                                isStale={isStale(announcement)}
+                                            />
+                                        ))
+                                    ) : (
+                                        <TableRow className="table-row">
+                                            <TableCell colSpan={10} className="table-cell h-28 text-center text-muted-foreground">
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <Shield className="h-8 w-8 text-indigo-300 animate-pulse" />
+                                                    <p className="font-semibold text-sm">No active regional broadcasts found.</p>
+                                                    <p className="text-xs">When regional accounts broadcast to member communities, they will appear here.</p>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {paginatedArchivedAnnouncements.length > 0 ? (
-                                            paginatedArchivedAnnouncements.map((announcement) => (
-                                                <AnnouncementRow
-                                                    key={announcement.id}
-                                                    announcement={announcement}
-                                                    onView={handleView}
-                                                    onCancel={handleCancel}
-                                                    isStale={false}
-                                                />
-                                            ))
-                                        ) : (
-                                            <TableRow className="table-row">
-                                                <TableCell colSpan={9} className="table-cell h-24 text-center">
-                                                    No archived broadcasts found.
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <PaginationControls pagination={regPagination} setPagination={setRegPagination} pageCount={regPageCount} totalRows={filteredRegionalAnnouncements.length} />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+
+            {/* TAB 2: LOCAL COMMUNITY BROADCASTS */}
+            <TabsContent value="community" className="space-y-4 m-0">
+                <Card className="border-t-4 border-t-emerald-600 shadow-sm">
+                    <CardHeader className="bg-gradient-to-r from-emerald-600/5 via-transparent to-transparent rounded-t-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <CardTitle className="text-lg font-bold flex items-center gap-2 text-emerald-950 dark:text-emerald-200">
+                                    <Building2 className="h-5 w-5 text-emerald-600" />
+                                    Local Community Announcements Log
+                                </CardTitle>
+                                <CardDescription>
+                                    {showStaleOnly ? "Isolating stale content for maintenance review." : "Comprehensive log of active and scheduled alerts issued by local community leaders and admins."}
+                                </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 font-bold self-start sm:self-auto">
+                                Town & Village Scope
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="rounded-md border">
+                            <Table className="responsive-table">
+                                <TableHeader className="table-header">
+                                    <TableRow>
+                                        <TableHead><Checkbox /></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('subject')}>Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('communityName')}>Community <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('audience')}>Audience <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('scheduledDates')}>Scheduled <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setCommSorting)('sentBy')}>Sent By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedCommunityAnnouncements.length > 0 ? (
+                                        paginatedCommunityAnnouncements.map((announcement) => (
+                                            <CommunityAnnouncementRow
+                                                key={announcement.id}
+                                                announcement={announcement}
+                                                onView={handleView}
+                                                onCancel={handleCancel}
+                                                isStale={isStale(announcement)}
+                                            />
+                                        ))
+                                    ) : (
+                                        <TableRow className="table-row">
+                                            <TableCell colSpan={9} className="table-cell h-24 text-center">
+                                                No active local community broadcasts found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <PaginationControls pagination={commPagination} setPagination={setCommPagination} pageCount={commPageCount} totalRows={filteredCommunityAnnouncements.length} />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+
+            {/* TAB 3: ARCHIVE */}
+            <TabsContent value="archive" className="space-y-4 m-0">
+                <Card className="border-t-4 border-t-slate-700 shadow-sm">
+                    <CardHeader className="bg-gradient-to-r from-slate-700/5 via-transparent to-transparent rounded-t-lg">
+                        <CardTitle className="text-lg font-bold flex items-center gap-2">
+                            <Archive className="h-5 w-5 text-slate-600" />
+                            Global Broadcast Historical Archive
+                        </CardTitle>
+                        <CardDescription>A comprehensive forensic record of all expired, completed, and archived broadcasts.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="rounded-md border">
+                            <Table className="responsive-table">
+                                <TableHeader className="table-header">
+                                    <TableRow>
+                                        <TableHead><Checkbox /></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('subject')}>Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead>Authority / Scope</TableHead>
+                                        <TableHead>Target Communities</TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('scheduledDates')}>Scheduled Dates <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('sentBy')}>Sent By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedArchivedAnnouncements.length > 0 ? (
+                                        paginatedArchivedAnnouncements.map((announcement) => (
+                                            <TableRow key={announcement.id} className="table-row hover:bg-muted/50 cursor-context-menu" onClick={() => handleView(announcement)}>
+                                                <TableCell className="table-cell" data-label="Select" onClick={(e) => e.stopPropagation()}><Checkbox /></TableCell>
+                                                <TableCell className="table-cell font-medium" data-label="Subject">
+                                                    <span className="font-semibold">{announcement.subject}</span>
+                                                </TableCell>
+                                                <TableCell className="table-cell" data-label="Type">{getTypeBadge(announcement)}</TableCell>
+                                                <TableCell className="table-cell font-medium" data-label="Scope">
+                                                    {announcement.isRegional ? (
+                                                        <Badge variant="outline" className="border-indigo-300 text-indigo-700 bg-indigo-50 text-[10px]">
+                                                            🛡️ {announcement.regionalAuthorityName || 'Regional'}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span>{announcement.communityName || 'Platform'}</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="table-cell" data-label="Target Communities">
+                                                    <TargetCommunitiesCell communities={announcement.targetCommunityNames} />
+                                                </TableCell>
+                                                <TableCell className="table-cell" data-label="Status">{getStatusBadge(announcement.status)}</TableCell>
+                                                <TableCell className="table-cell text-xs font-mono" data-label="Scheduled Dates">{announcement.scheduledDates}</TableCell>
+                                                <TableCell className="table-cell text-xs" data-label="Sent By">{announcement.sentBy}</TableCell>
+                                                <TableCell className="table-cell text-right" data-label="Actions" onClick={(e) => e.stopPropagation()}>
+                                                    <Button variant="ghost" size="sm" onClick={() => handleView(announcement)}>
+                                                        <Eye className="h-4 w-4 mr-1" /> View Record
+                                                    </Button>
                                                 </TableCell>
                                             </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                            <PaginationControls pagination={archivedPagination} setPagination={setArchivedPagination} pageCount={archivedPageCount} totalRows={filteredArchivedAnnouncements.length} />
-                        </CardContent>
-                    </Card>
-                </AccordionContent>
-            </AccordionItem>
-        </Accordion>
+                                        ))
+                                    ) : (
+                                        <TableRow className="table-row">
+                                            <TableCell colSpan={9} className="table-cell h-24 text-center">
+                                                No archived broadcasts found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <PaginationControls pagination={archivedPagination} setPagination={setArchivedPagination} pageCount={archivedPageCount} totalRows={filteredArchivedAnnouncements.length} />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        </Tabs>
     </div>
     
+    {/* Detailed Forensic Audit Record Modal */}
     <Dialog open={!!viewingAnnouncement} onOpenChange={(isOpen) => !isOpen && setViewingAnnouncement(null)}>
         <DialogContent className="sm:max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden border-2 shadow-2xl">
             <DialogHeader className="p-6 pb-4 border-b shrink-0 text-center sm:text-left flex flex-row items-center justify-between bg-primary/5">
@@ -825,7 +1115,7 @@ export default function AdminEmergencyPage() {
                         Official Investigative Audit Record
                     </DialogTitle>
                     <DialogDescription className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        Permanent Platform Forensic communication log &bull; System Verified
+                        Permanent Platform Forensic Communication Log &bull; System Verified
                     </DialogDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => window.print()} className="shrink-0 gap-2 font-bold uppercase tracking-tighter text-xs shadow-sm bg-white no-print">
@@ -836,21 +1126,29 @@ export default function AdminEmergencyPage() {
                 {viewingAnnouncement && (() => {
                     const styles = getAuthorityBoxStyles(viewingAnnouncement);
                     return (
-                        <div className="p-6 space-y-10">
+                        <div className="p-6 space-y-8">
+                            {/* Sender Authority Header Card */}
                             <section className={cn("p-6 rounded-2xl border-2 space-y-6 transition-colors duration-500", styles.container)}>
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                                     <div className="space-y-2">
                                         <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2", styles.label)}>
-                                            <ShieldAlert className="h-3 w-3" />
-                                            Verified Sender Authority
+                                            {viewingAnnouncement.isRegional ? <Shield className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                                            {viewingAnnouncement.isRegional ? "Verified Regional Authority Sender" : "Verified Sender Authority"}
                                         </h4>
-                                        <p className="text-3xl font-black font-headline tracking-tighter text-foreground flex items-center gap-3">
+                                        <p className="text-2xl sm:text-3xl font-black font-headline tracking-tighter text-foreground flex items-center gap-3">
                                             <UserCircle className={cn("h-8 w-8", styles.icon)} />
-                                            {viewingAnnouncement.sentBy}
+                                            {viewingAnnouncement.regionalAuthorityName || viewingAnnouncement.sentBy}
                                         </p>
-                                        <p className="text-[10px] font-mono text-muted-foreground uppercase bg-white/50 px-2 py-0.5 rounded w-fit border border-primary/10">
-                                            Authority ID: {viewingAnnouncement.ownerId || viewingAnnouncement.userId || 'N/A'}
-                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-[10px] font-mono text-muted-foreground uppercase bg-white/50 px-2 py-0.5 rounded w-fit border border-primary/10">
+                                                Authority ID: {viewingAnnouncement.ownerId || viewingAnnouncement.userId || 'N/A'}
+                                            </p>
+                                            {viewingAnnouncement.isRegional && (
+                                                <Badge className="bg-indigo-600 text-white text-[10px] font-bold">
+                                                    Regional Network Tier
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="space-y-2 md:text-right">
                                         <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Log Timestamp of Origin</h4>
@@ -859,11 +1157,37 @@ export default function AdminEmergencyPage() {
                                             {viewingAnnouncement.createdAt?.toDate ? format(viewingAnnouncement.createdAt.toDate(), "PPPP 'at' HH:mm:ss 'UTC'") : 'N/A'}
                                         </p>
                                         <Badge variant="outline" className="bg-background font-black uppercase text-[10px] tracking-widest">
-                                            Scope: {viewingAnnouncement.scope}-level
+                                            Scope: {viewingAnnouncement.isRegional ? 'Regional Multi-Hub' : `${viewingAnnouncement.scope || 'Community'}-level`}
                                         </Badge>
                                     </div>
                                 </div>
                             </section>
+
+                            {/* Targeted Communities Section for Regional Broadcasts */}
+                            {viewingAnnouncement.targetCommunityNames && viewingAnnouncement.targetCommunityNames.length > 0 && (
+                                <section className="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border-2 border-indigo-200 dark:border-indigo-900/50 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                                            <Building2 className="h-4 w-4" />
+                                            Targeted Boundary Member Communities ({viewingAnnouncement.targetCommunityNames.length})
+                                        </h4>
+                                        <Badge variant="outline" className="border-indigo-300 text-indigo-700 text-[10px] font-bold">
+                                            Delivery Scope Verified
+                                        </Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        This broadcast was dispatched directly into the community hubs and emergency feeds of the following towns:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {viewingAnnouncement.targetCommunityNames.map((name, i) => (
+                                            <Badge key={i} variant="secondary" className="bg-white dark:bg-slate-900 border border-indigo-200 shadow-xs text-xs font-semibold py-1 px-2.5">
+                                                <MapPin className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                                                {name}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
 
                             {viewingAnnouncement.image && (
                                 <div className="relative w-1/3 mx-auto aspect-video rounded-xl overflow-hidden shadow-sm border bg-muted group">
@@ -893,7 +1217,7 @@ export default function AdminEmergencyPage() {
                                     Targeted Jurisdictional Routing Audit
                                 </h4>
                                 <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10">
-                                    <GeographicalPath audience={viewingAnnouncement.audience} />
+                                    <GeographicalPath audience={viewingAnnouncement.audience} targetCommunityNames={viewingAnnouncement.targetCommunityNames} />
                                     <p className="text-[9px] font-bold text-muted-foreground uppercase mt-4 italic tracking-tighter opacity-70 border-t pt-2">
                                         Legal Notice: This broadcast was restricted to verified recipients in the jurisdictional route resolved above.
                                     </p>
@@ -970,3 +1294,4 @@ export default function AdminEmergencyPage() {
     </>
   );
 }
+
