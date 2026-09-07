@@ -279,46 +279,10 @@
 
 @layer utilities {
   @media print {
-    /* 1. Hide interactive elements, headers, footers, sidebars and controls */
-    header,
-    footer,
-    nav,
-    aside,
-    .no-print,
-    button:not(.print-visible),
-    [data-radix-scroll-area-scrollbar],
-    [data-radix-dialog-close],
-    .no-print * {
-      display: none !important;
-    }
-
-    /* 2. When printing a modal report, completely hide the outer app wrapper (min-h-screen) to eliminate blank 1st page */
-    body.printing-report > *:not([data-radix-portal]),
-    body.printing-report > div:first-child,
-    body:has([role="dialog"]) > *:not([data-radix-portal]),
-    body:has([role="dialog"]) > div:first-child,
-    body.printing-report main,
-    body:has([role="dialog"]) main {
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      max-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-    }
-
-    /* 3. Hide dark modal overlay backdrop */
-    [data-radix-dialog-overlay],
-    .fixed.inset-0.bg-black\/80,
-    .fixed.inset-0.bg-background\/80 {
-      display: none !important;
-    }
-
-    /* 4. Reset page viewport and background */
+    /* 1. Page Viewport Setup */
     html,
     body {
-      background-color: #ffffff !important;
+      background: #ffffff !important;
       color: #000000 !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -330,47 +294,46 @@
       position: relative !important;
     }
 
-    /* 5. Ensure Radix Portal container and wrappers start at top (0,0) without blank gaps */
-    [data-radix-portal],
-    [data-radix-portal] > div {
-      position: static !important;
-      display: block !important;
-      width: 100% !important;
-      height: auto !important;
-      min-height: 0 !important;
-      overflow: visible !important;
-      background: transparent !important;
-      margin: 0 !important;
-      padding: 0 !important;
+    /* 2. Hide everything by default */
+    body * {
+      visibility: hidden;
     }
 
-    /* 6. Transform Dialog into a clean, unconstrained document starting at page 1 */
-    [role="dialog"] {
-      position: static !important;
-      transform: none !important;
-      inset: auto !important;
-      top: 0 !important;
+    /* 3. Make ONLY the printable report container and all its children visible */
+    #printable-forensic-report,
+    #printable-forensic-report *,
+    .printable-report,
+    .printable-report * {
+      visibility: visible;
+    }
+
+    /* 4. Anchor the printable report to top-left of Page 1 */
+    #printable-forensic-report,
+    .printable-report {
+      position: absolute !important;
       left: 0 !important;
-      right: auto !important;
-      bottom: auto !important;
+      top: 0 !important;
       width: 100% !important;
       max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+      border: none !important;
+      box-shadow: none !important;
+      display: block !important;
       height: auto !important;
       min-height: 0 !important;
       max-height: none !important;
-      border: none !important;
-      box-shadow: none !important;
-      margin: 0 !important;
-      padding: 0 !important;
       overflow: visible !important;
-      display: block !important;
-      background: #ffffff !important;
-      color: #000000 !important;
+      z-index: 999999 !important;
     }
 
-    /* 7. Expand Radix ScrollArea viewport so inner scrollbar is removed and entire content flows smoothly */
-    [data-radix-scroll-area-viewport],
-    [data-radix-scroll-area-viewport] > div {
+    /* 5. Radix ScrollArea inside the report expands freely */
+    #printable-forensic-report [data-radix-scroll-area-viewport],
+    #printable-forensic-report [data-radix-scroll-area-viewport] > div,
+    .printable-report [data-radix-scroll-area-viewport],
+    .printable-report [data-radix-scroll-area-viewport] > div {
       display: block !important;
       height: auto !important;
       min-height: 0 !important;
@@ -381,7 +344,17 @@
       padding: 0 !important;
     }
 
-    /* 8. Clean section flow without awkward breaks */
+    /* 6. Explicitly hide non-printable controls inside the report */
+    .no-print,
+    .no-print *,
+    [data-radix-scroll-area-scrollbar],
+    [data-radix-dialog-close],
+    button {
+      display: none !important;
+      visibility: hidden !important;
+    }
+
+    /* 7. Avoid awkward page breaks inside cards/sections */
     section,
     .card,
     [data-slot="card"] {
