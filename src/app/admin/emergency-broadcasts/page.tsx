@@ -561,27 +561,84 @@ export default function AdminEmergencyPage() {
   
   const handleView = React.useCallback((announcement: EnrichedAnnouncement) => setViewingAnnouncement(announcement), []);
 
-  const handleCancel = React.useCallback(async (announcementId: string) => {
+  const handleCancel = React.useCallback(async (announcement: EnrichedAnnouncement | string) => {
     if (!db || !user) return;
+    const id = typeof announcement === 'string' ? announcement : announcement.id;
+    const subject = typeof announcement === 'object' ? announcement.subject : undefined;
+
     try {
-        const announcementRef = doc(db, 'announcements', announcementId);
+        const announcementRef = doc(db, 'announcements', id);
+        const existingHistory = (typeof announcement === 'object' && Array.isArray(announcement.history)) 
+            ? announcement.history 
+            : (viewingAnnouncement?.history || []);
+        
         await updateDoc(announcementRef, { 
             status: "Archived",
-            history: viewingAnnouncement?.history ? [...viewingAnnouncement.history, { status: "Archived", actorId: user.uid, timestamp: new Date() }] : [{ status: "Archived", actorId: user.uid, timestamp: new Date() }]
+            history: [...existingHistory, { status: "Archived", actorId: user.uid, timestamp: new Date(), reason: "Manually archived by Administrator" }]
         });
 
-        // Also update corresponding regionalBroadcasts document if present
+        // Also update direct ID match in regionalBroadcasts
         try {
-            const regionalRef = doc(db, 'regionalBroadcasts', announcementId);
-            await updateDoc(regionalRef, { status: "Archived" });
+            await updateDoc(doc(db, 'regionalBroadcasts', id), { status: "Archived", updatedAt: new Date() });
         } catch (_) {}
 
+        // Also update matching title in regionalBroadcasts
+        if (subject) {
+            try {
+                const regQuery = query(collection(db, 'regionalBroadcasts'), where('title', '==', subject));
+                const regSnap = await getDocs(regQuery);
+                regSnap.forEach(async (d) => {
+                    await updateDoc(doc(db, 'regionalBroadcasts', d.id), { status: 'Archived', updatedAt: new Date() });
+                });
+            } catch (_) {}
+        }
+
         toast({ title: "Broadcast Archived", description: `Record moved to historical archive.`});
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error archiving broadcast:", error);
-        toast({ title: "Error", description: "Failed to archive the broadcast.", variant: "destructive"});
+        toast({ title: "Error", description: error.message || "Failed to archive the broadcast.", variant: "destructive"});
     }
   }, [toast, db, user, viewingAnnouncement]);
+
+  const handleReactivate = React.useCallback(async (announcement: EnrichedAnnouncement) => {
+    if (!db || !user) return;
+    try {
+        const announcementRef = doc(db, 'announcements', announcement.id);
+        const historyEntry = {
+            status: "Live",
+            actorId: user.uid,
+            timestamp: new Date(),
+            reason: "Manually restored to Live by Administrator"
+        };
+        const existingHistory = Array.isArray(announcement.history) ? announcement.history : [];
+        await updateDoc(announcementRef, { 
+            status: "Live",
+            history: [...existingHistory, historyEntry],
+            updatedAt: new Date()
+        });
+
+        // Also update regionalBroadcasts document if direct ID match
+        try {
+            await updateDoc(doc(db, 'regionalBroadcasts', announcement.id), { status: "Live", updatedAt: new Date() });
+        } catch (_) {}
+
+        // Also update matching title in regionalBroadcasts
+        if (announcement.subject) {
+            try {
+                const regQuery = query(collection(db, 'regionalBroadcasts'), where('title', '==', announcement.subject));
+                const regSnap = await getDocs(regQuery);
+                regSnap.forEach(async (d) => {
+                    await updateDoc(doc(db, 'regionalBroadcasts', d.id), { status: 'Live', updatedAt: new Date() });
+                });
+            } catch (_) {}
+        }
+
+        toast({ title: "Broadcast Restored to Live", description: `Record is now Live and returned to active tables.`});
+    } catch (error: any) {
+        console.error("Error reactivating broadcast:", error);
+        toast({ title: "Error", description: error.message || "Failed to reactivate broadcast.", variant: "destructive"});
+    }
+  }, [toast, db, user]);
 
   const handleMaintenanceSweep = async () => {
     if (!confirm("Are you sure you want to archive all broadcasts that have been active for more than 14 days without an expiry date?")) return;
@@ -1111,9 +1168,30 @@ export default function AdminEmergencyPage() {
                                                 <TableCell className="table-cell text-xs font-mono" data-label="Scheduled Dates">{announcement.scheduledDates}</TableCell>
                                                 <TableCell className="table-cell text-xs" data-label="Sent By">{announcement.sentBy}</TableCell>
                                                 <TableCell className="table-cell text-right" data-label="Actions" onClick={(e) => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="sm" onClick={() => handleView(announcement)}>
-                                                        <Eye className="h-4 w-4 mr-1" /> View Record
-                                                    </Button>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                                                <span className="sr-only">Open menu</span>
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuLabel>Archive Actions</DropdownMenuLabel>
+                                                            <DropdownMenuItem onClick={() => handleView(announcement)}>
+                                                                <Eye className="mr-2 h-4 w-4" />
+                                                                View Audit Record
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleReactivate(announcement)} className="text-emerald-600 focus:text-emerald-700 font-medium">
+                                                                <RotateCw className="mr-2 h-4 w-4" />
+                                                                Restore to Live
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem onClick={() => printForensicAuditReport(announcement)}>
+                                                                <Printer className="mr-2 h-4 w-4" />
+                                                                Print Forensic Report
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                 </TableCell>
                                             </TableRow>
                                         ))
