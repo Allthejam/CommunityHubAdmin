@@ -418,22 +418,37 @@ export async function createCommunityAnnouncementAction(
 export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
     const { firestore } = initializeAdminApp();
     const cutoffDate = subDays(new Date(), 14);
-    const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+    const now = new Date();
 
     try {
-        console.log(`[Maintenance] Starting announcement sweep for items created before: ${cutoffDate.toISOString()}`);
+        console.log(`[Maintenance] Starting announcement sweep for items past expiration or older than 14 days...`);
         
-        // Query for active items with NO end date
-        const q = firestore.collection('announcements')
-            .where('status', '!=', 'Archived')
-            .where('endDate', '==', null);
-
-        const snapshot = await q.get();
+        // Fetch announcements and perform in-memory evaluation to avoid Firestore composite index requirement
+        const snapshot = await firestore.collection('announcements').get();
         
-        // Secondary filtering for the 14-day creation date
+        // Filter for stale/expired documents
         const staleDocs = snapshot.docs.filter(doc => {
-            const createdAt = doc.data().createdAt;
-            return createdAt && createdAt.toDate() < cutoffDate;
+            const data = doc.data();
+            const status = (data.status || '').toLowerCase();
+            if (status === 'archived') return false;
+
+            // 1. If explicit endDate is provided and has passed -> archive
+            if (data.endDate) {
+                const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
+                if (endDate && !isNaN(endDate.getTime()) && endDate < now) {
+                    return true;
+                }
+            }
+
+            // 2. If NO endDate is provided and item was created > 14 days ago -> archive
+            if (!data.endDate) {
+                const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : null;
+                if (createdAt && !isNaN(createdAt.getTime()) && createdAt < cutoffDate) {
+                    return true;
+                }
+            }
+
+            return false;
         });
 
         if (staleDocs.length === 0) {
@@ -449,7 +464,7 @@ export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
                 status: 'Archived',
                 actorId: 'system_maintenance',
                 timestamp: Timestamp.now(),
-                reason: 'Auto-archived: Content exceeded 14-day limit for dateless dispatches.'
+                reason: 'Auto-archived: Content exceeded 14-day limit for dateless dispatches or passed expiration date.'
             };
 
             currentBatch.update(doc.ref, {

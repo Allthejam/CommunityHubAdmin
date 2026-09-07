@@ -85,15 +85,18 @@ export async function runCareerCleanupAction(): Promise<ActionResponse> {
     const today = startOfDay(new Date());
 
     try {
-        console.log(`[Careers Maintenance] Scanning for expired vacancies...`);
-        
-        const q = firestore.collection('careers')
+        const snapshot = await firestore.collection('careers')
             .where('status', '==', 'Open')
-            .where('closingDate', '<', Timestamp.fromDate(today));
+            .get();
 
-        const snapshot = await q.get();
+        const expiredDocs = snapshot.docs.filter(doc => {
+            const data = doc.data();
+            if (!data.closingDate) return false;
+            const closingDate = data.closingDate.toDate ? data.closingDate.toDate() : new Date(data.closingDate);
+            return closingDate && !isNaN(closingDate.getTime()) && closingDate < today;
+        });
 
-        if (snapshot.empty) {
+        if (expiredDocs.length === 0) {
             return { success: true, count: 0 };
         }
 
@@ -101,7 +104,7 @@ export async function runCareerCleanupAction(): Promise<ActionResponse> {
         let totalUpdated = 0;
         let currentBatch = firestore.batch();
 
-        for (const doc of snapshot.docs) {
+        for (const doc of expiredDocs) {
             currentBatch.update(doc.ref, {
                 status: 'Closed',
                 updatedAt: Timestamp.now(),
