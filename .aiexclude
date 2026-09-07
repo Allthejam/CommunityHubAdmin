@@ -1,0 +1,17 @@
+# Exclude heavy folders
+node_modules/
+dist/
+build/
+.firebase/
+.git/
+
+# Exclude assets that consume tokens via vision/binary processing
+public/assets/images/
+public/assets/videos/
+*.png
+*.jpg
+*.jpeg
+*.mp4
+
+# Exclude logs
+*.log

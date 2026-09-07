@@ -1,0 +1,1038 @@
+
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a platform user, including their core profile, roles, and permissions.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "avatar": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "description": "The user's primary role for default navigation." },
+        "title": { "type": "string", "description": "The user's primary title, e.g., 'President'." },
+        "accountType": { "type": "string", "description": "The original account type chosen at signup." },
+        "homeCommunityId": { "type": "string", "description": "The user's primary, home community." },
+        "communityId": { "type": "string", "description": "The community the user is currently viewing." },
+        "communityName": { "type": "string", "description": "The name of the community the user is currently viewing." },
+        "memberOf": {
+            "type": "array",
+            "description": "An array of community IDs the user is a member of.",
+            "items": { "type": "string" }
+        },
+        "permissions": {
+            "type": "object",
+            "description": "A map of boolean flags for user permissions.",
+            "properties": {
+                "isLeader": { "type": "boolean" },
+                "isBusinessOwner": { "type": "boolean" },
+                "isEnterpriseUser": { "type": "boolean" },
+                "hasBroadcastAccess": { "type": "boolean" },
+                "isAdmin": { "type": "boolean" },
+                "isReporter": { "type": "boolean" },
+                "isNationalAdvertiser": { "type": "boolean" }
+            }
+        },
+        "communityRoles": {
+            "type": "object",
+            "description": "A map where keys are community IDs and values define the user's role in that community.",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "role": { "type": "string" },
+                    "title": { "type": "string" }
+                }
+            }
+        },
+        "ownedBusinessIds": {
+            "type": "array",
+            "description": "An array of business IDs that the user owns.",
+            "items": { "type": "string" }
+        },
+        "favouriteBusinesses": {
+            "type": "array",
+            "description": "An array of business IDs that the user has favourited.",
+            "items": { "type": "string" }
+        },
+        "cart": {
+            "type": "array",
+            "description": "The user's shopping cart items.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "productId": { "type": "string" },
+                    "quantity": { "type": "number" },
+                    "businessId": { "type": "string" }
+                },
+                "required": ["productId", "quantity", "businessId"]
+            }
+        },
+        "settings": {
+            "type": "object",
+            "description": "User-specific settings and preferences.",
+            "properties": {
+                "publicProfile": { "type": "boolean" },
+                "adPersonalization": { "type": "boolean" },
+                "selectedCategories": { "type": "array", "items": { "type": "string" } },
+                "darkMode": { "type": "boolean" },
+                "theme": {
+                    "type": "object",
+                    "properties": {
+                        "background": { "type": "string" },
+                        "card": { "type": "string" },
+                        "primary": { "type": "string" }
+                    }
+                }
+            }
+        },
+        "termsAcceptedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the user accepted the terms and cookie policy."
+        }
+      },
+      "required": ["name", "email"]
+    },
+    "PlatformOverview": {
+      "title": "Platform Overview",
+      "description": "Contains content for the platform overview page.",
+      "type": "object",
+      "properties": {
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "icon": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" }
+            },
+            "required": ["icon", "title", "description"]
+          }
+        },
+        "accountTypes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "icon": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" }
+            },
+            "required": ["icon", "title", "description"]
+          }
+        }
+      }
+    },
+    "AudioTour": {
+      "title": "AudioTour",
+      "description": "Stores audio briefing content for the admin audio hub.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the audio tab." },
+        "text": { "type": "string", "description": "The script content to be converted to speech." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "voice": { "type": "string", "description": "The selected voice for the audio." }
+      },
+      "required": ["title", "text", "updatedAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A single post within a community feed.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string", "description": "The ID of the user who created the post." },
+        "authorName": { "type": "string" },
+        "authorAvatar": { "type": "string", "format": "uri" },
+        "content": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "communityId": { "type": "string", "description": "The ID of the community this post belongs to." },
+        "status": { "type": "string", "enum": ["new", "active", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "likes": { "type": "number", "description": "The total number of likes." },
+        "likedBy": { "type": "array", "items": { "type": "string" }, "description": "A list of user IDs who have liked the post." },
+        "commentCount": { "type": "number", "description": "The total number of comments." }
+      },
+      "required": ["authorId", "authorName", "content", "communityId", "status", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A single comment on a post.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorAvatar": { "type": "string", "format": "uri" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "authorName", "text", "createdAt"]
+    },
+    "Role": {
+      "title": "Role",
+      "description": "Defines a set of permissions for a user, stored as custom claims.",
+      "type": "object",
+      "properties": {
+        "isAdmin": {
+          "type": "boolean",
+          "description": "Grants full administrative access."
+        },
+        "isCommunityCreator": {
+            "type": "boolean",
+            "description": "Allows creating communities and managing content in leaderless communities."
+        },
+        "canManageCommunities": {
+          "type": "boolean",
+          "description": "Allows managing communities."
+        },
+        "canImpersonateLeader": {
+          "type": "boolean",
+          "description": "Allows impersonating a community leader."
+        }
+      }
+    },
+    "Community": {
+      "title": "Community",
+      "description": "Represents a community's core listing information.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["geographic", "topic"] },
+        "category": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["public", "private"] },
+        "country": { "type": "string" },
+        "state": { "type": "string" },
+        "region": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" },
+        "profileId": { "type": "string", "description": "ID of the corresponding document in /community_profiles" },
+        "memberCount": { "type": "number", "description": "Denormalized count of members in the community." },
+        "leaderCount": { "type": "number", "description": "Denormalized count of leaders in the community." },
+        "stripeAccountId": { "type": "string", "description": "The Stripe Connect account ID for this community's payouts." },
+        "revenueShare": { "type": "number", "description": "The revenue share percentage (e.g., 40 for 40%) for this community." }
+      },
+      "required": ["name", "type", "visibility", "status", "createdAt", "createdBy", "profileId"]
+    },
+    "CommunityProfile": {
+      "title": "CommunityProfile",
+      "description": "Stores the extensive profile and configuration data for a single community.",
+      "type": "object",
+      "properties": {
+        "headline": { "type": "string", "description": "A short, catchy headline for the community." },
+        "introduction": { "type": "string", "description": "An introductory text about the community." },
+        "mainContent": { "type": "string", "description": "The main, detailed content for the community's page, potentially HTML." },
+        "bannerImage": { "type": "string", "format": "uri", "description": "URL for the community's main banner image." },
+        "imageOne": { "type": "string", "format": "uri", "description": "URL for an additional promotional image." },
+        "imageTwo": { "type": "string", "format": "uri", "description": "URL for a second additional promotional image." },
+        "area": { "type": "string", "description": "The geographic area the community covers (e.g., in sq miles)." },
+        "mapEmbedCode": { "type": "string", "description": "HTML embed code for a map view." },
+        "population": { "type": "string", "description": "The population count of the community." },
+        "yearEstablished": { "type": "string", "description": "The year the community was established." },
+        "communityInformation": {
+          "type": "object",
+          "properties": {
+            "leaderName": { "type": "string" },
+            "leaderUid": { "type": "string" },
+            "contactPhone": { "type": "string" },
+            "refEmail": { "type": "string", "format": "email" },
+            "refName": { "type": "string" },
+            "refPhone": { "type": "string" }
+          }
+        },
+        "policeContact": {
+          "type": "object",
+          "properties": {
+            "stationName": { "type": "string" },
+            "officerName": { "type": "string" },
+            "contactEmail": { "type": "string", "format": "email" },
+            "contactPhone": { "type": "string" }
+          }
+        }
+      }
+    },
+    "Business": {
+        "title": "Business",
+        "description": "Represents a business profile on the platform.",
+        "type": "object",
+        "properties": {
+            "ownerId": { "type": "string", "description": "The ID of the user who owns the business." },
+            "businessName": { "type": "string", "description": "The public name of the business." },
+            "businessCategory": { "type": "string" },
+            "website": { "type": "string", "format": "uri" },
+            "socialMedia": { "type": "string", "format": "uri" },
+            "contactEmail": { "type": "string", "format": "email" },
+            "contactNumber": { "type": "string" },
+            "shortDescription": { "type": "string" },
+            "longDescription": { "type": "string" },
+            "primaryCommunityId": { "type": "string" },
+            "additionalCommunities": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Array of additional community IDs where this business advertises."
+            },
+            "addresses": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                    "addressLine1": { "type": "string" },
+                    "addressLine2": { "type": "string" },
+                    "city": { "type": "string" },
+                    "stateCounty": { "type": "string" },
+                    "postcode": { "type": "string" }
+                    }
+                }
+            },
+            "bannerImage": { "type": "string", "format": "uri" },
+            "logoImage": { "type": "string", "format": "uri" },
+            "stripeAccountId": { "type": "string", "description": "The Stripe Connect account ID for this business." },
+            "storefrontSubscription": { "type": "boolean", "description": "Indicates if the business has an active storefront subscription." },
+            "openingHours": {
+              "type": "object",
+              "properties": {
+                "monday": { "$ref": "#/entities/DayHours" },
+                "tuesday": { "$ref": "#/entities/DayHours" },
+                "wednesday": { "$ref": "#/entities/DayHours" },
+                "thursday": { "$ref": "#/entities/DayHours" },
+                "friday": { "$ref": "#/entities/DayHours" },
+                "saturday": { "$ref": "#/entities/DayHours" },
+                "sunday": { "$ref": "#/entities/DayHours" }
+              }
+            },
+            "storeSettings": {
+                "type": "object",
+                "properties": {
+                    "deliveryAvailable": { "type": "boolean" },
+                    "deliveryType": { "type": "string", "enum": ["free", "flat_rate"] },
+                    "deliveryPrice": { "type": "number" },
+                    "catalogueMode": { "type": "boolean" },
+                    "showPricesInCatalogue": { "type": "boolean" }
+                }
+            },
+            "metaTitle": { "type": "string", "description": "SEO title for the business profile page." },
+            "metaDescription": { "type": "string", "description": "SEO description for search engines." }
+        },
+        "required": ["businessName", "primaryCommunityId", "ownerId"]
+    },
+    "DayHours": {
+        "title": "DayHours",
+        "type": "object",
+        "description": "Opening hours for a single day, including a lunch break.",
+        "properties": {
+            "morningOpen": { "type": "string", "description": "e.g., 09:00" },
+            "morningClose": { "type": "string", "description": "e.g., 12:30" },
+            "afternoonOpen": { "type": "string", "description": "e.g., 13:30" },
+            "afternoonClose": { "type": "string", "description": "e.g., 17:00" },
+            "closed": { "type": "boolean" }
+        }
+    },
+    "AccessRequest": {
+        "title": "AccessRequest",
+        "description": "Represents an application for special access, like the emergency broadcast system.",
+        "type": "object",
+        "properties": {
+            "applicantName": { "type": "string" },
+            "applicantTitle": { "type": "string" },
+            "agency": { "type": "string" },
+            "country": { "type": "string" },
+            "govLevel": { "type": "string" },
+            "phone": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "refName": { "type": "string" },
+            "refTitle": { "type": "string" },
+            "refEmail": { "type": "string", "format": "email" },
+            "refPhone": { "type": "string" },
+            "justification": { "type": "string" },
+            "agreedToTerms": { "type": "boolean" },
+            "status": { "type": "string", "enum": ["Pending", "Approved", "Declined", "Suspended", "Archived"] },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["applicantName", "applicantTitle", "agency", "country", "govLevel", "phone", "email", "justification", "agreedToTerms", "status", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Represents a user-submitted report to either community leaders or platform administrators.",
+      "type": "object",
+      "properties": {
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Low", "Moderate", "Severe"] },
+        "status": { "type": "string", "enum": ["New", "In Progress", "Resolved", "Archived"] },
+        "reporterId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "communityId": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "contactPreference": { "type": "string" },
+        "contactDetail": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "resolvedBy": { "type": "string" },
+        "resolutionNotes": { "type": "string" }
+      },
+      "required": ["subject", "description", "category", "status", "reporterId", "reporterName", "createdAt"]
+    },
+     "Location": {
+      "title": "Location",
+      "description": "Represents a geographic location like a country, state, or region.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["country", "state", "region"] },
+        "parent": { "type": "string", "description": "Reference to the parent location document ID (e.g., a state's parent is a country)." }
+      },
+      "required": ["name", "type"]
+    },
+    "BusinessPlan": {
+      "title": "BusinessPlan",
+      "description": "Pricing plan for local businesses.",
+      "type": "object",
+      "properties": {
+        "monthlyPrice": { "type": "number" },
+        "annualPrice": { "type": "number" },
+        "adverts": { "type": "number" },
+        "events": { "type": "number" },
+        "galleryImages": { "type": "number" },
+        "additionalAdvertPrice": { "type": "number" },
+        "additionalEventPrice": { "type": "number" }
+      },
+      "required": ["monthlyPrice", "annualPrice"]
+    },
+    "StorefrontPlan": {
+        "title": "StorefrontPlan",
+        "description": "Pricing plan for the storefront add-on for businesses.",
+        "type": "object",
+        "properties": {
+            "monthlyPrice": { "type": "number" },
+            "annualPrice": { "type": "number" }
+        },
+        "required": ["monthlyPrice", "annualPrice"]
+    },
+    "EnterprisePlan": {
+      "title": "EnterprisePlan",
+      "description": "Pricing plan for enterprise partners.",
+      "type": "object",
+      "properties": {
+        "monthlyPrice": { "type": "number" },
+        "annualPrice": { "type": "number" },
+        "adverts": { "type": "number" },
+        "events": { "type": "number" },
+        "galleryImages": { "type": "number" },
+        "featuredPartner": { "type": "boolean" },
+        "additionalAdvertPrice": { "type": "number" },
+        "additionalEventPrice": { "type": "number" }
+      },
+      "required": ["monthlyPrice", "annualPrice"]
+    },
+    "AdvertiserPlan": {
+      "title": "AdvertiserPlan",
+      "description": "Pricing for national advertisers.",
+      "type": "object",
+      "properties": {
+        "featuredAdPrice": { "type": "number" },
+        "partnerAdPrice": { "type": "number" },
+        "galleryImages": { "type": "number" }
+      },
+      "required": ["featuredAdPrice", "partnerAdPrice"]
+    },
+    "GalleryImage": {
+      "title": "GalleryImage",
+      "description": "A single image in a gallery, with its URL and storage path.",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "format": "uri", "description": "The public URL of the image." },
+        "path": { "type": "string", "description": "The full path to the image in Cloud Storage." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "description": { "type": "string", "description": "A short description of the image for internal reference or alt text." }
+      },
+      "required": ["url", "path", "createdAt"]
+    },
+    "FaqItem": {
+      "title": "FaqItem",
+      "description": "A single frequently asked question item for a community.",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "order": { "type": "number" },
+        "showOnHomepage": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["question", "answer", "order", "showOnHomepage", "createdAt"]
+    },
+    "Feedback": {
+        "title": "Feedback",
+        "description": "Represents a feedback submission from a user for a specific community.",
+        "type": "object",
+        "properties": {
+            "userId": { "type": "string", "description": "The ID of the user submitting the feedback (if not anonymous)." },
+            "communityId": { "type": "string", "description": "The ID of the community the feedback is for." },
+            "feedbackText": { "type": "string", "description": "The main content of the feedback." },
+            "category": { "type": "string", "enum": ["suggestion", "bug_report", "compliment", "complaint", "other"] },
+            "contactEmail": { "type": "string", "format": "email", "description": "Optional contact email provided by the user." },
+            "status": { "type": "string", "enum": ["New", "Read", "Archived", "Actioned"], "description": "The status of the feedback item." },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["communityId", "feedbackText", "category", "status", "createdAt"]
+    },
+    "Charity": {
+      "title": "Charity",
+      "description": "Represents a local charity or non-profit organization.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "address": { "type": "string" },
+        "website": { "type": "string", "format": "uri" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "registrationNumber": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Archived"] },
+        "communityId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "metaTitle": { "type": "string", "description": "SEO title for the charity page." },
+        "metaDescription": { "type": "string", "description": "SEO description for search engines." }
+      },
+      "required": ["title", "category", "description", "communityId", "status", "createdAt"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Represents a community event.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "businessId": { "type": "string" },
+        "businessName": { "type": "string" },
+        "communityId": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "startTime": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "status": { "type": "string", "enum": ["Live", "Upcoming", "Draft", "Archived", "Pending Approval"] }
+      },
+      "required": ["ownerId", "communityId", "title", "category", "description", "startDate", "status"]
+    },
+    "AuditLogEntry": {
+        "title": "AuditLogEntry",
+        "description": "A record of a significant action taken by an administrator.",
+        "type": "object",
+        "properties": {
+            "adminId": { "type": "string" },
+            "adminNameSnapshot": { "type": "string" },
+            "action": { "type": "string" },
+            "details": { "type": "string" },
+            "timestamp": { "type": "string", "format": "date-time" },
+            "targetUser": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" }
+                }
+            }
+        },
+        "required": ["adminId", "adminNameSnapshot", "action", "details", "timestamp"]
+    },
+    "WhatsonItem": {
+      "title": "WhatsonItem",
+      "description": "Represents a permanent venue or attraction.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "address": { "type": "string" },
+        "website": { "type": "string", "format": "uri" },
+        "social": { "type": "string", "format": "uri" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "status": { "type": "string", "enum": ["Active", "Temporarily Closed", "Archived"] },
+        "communityId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "metaTitle": { "type": "string", "description": "SEO title for the item page." },
+        "metaDescription": { "type": "string", "description": "SEO description for search engines." },
+        "openingHours": {
+          "type": "object",
+          "properties": {
+            "monday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } },
+            "tuesday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } },
+            "wednesday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } },
+            "thursday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } },
+            "friday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } },
+            "saturday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } },
+            "sunday": { "type": "object", "properties": { "open": { "type": "string" }, "close": { "type": "string" }, "closed": { "type": "boolean" } } }
+          }
+        }
+      },
+      "required": ["title", "category", "description", "communityId", "status", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Represents a product sold by a business on their storefront.",
+      "type": "object",
+      "properties": {
+        "businessId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "videoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "An optional URL to a YouTube video for the product."
+        },
+        "stock": { "type": "number" },
+        "status": { "type": "string", "enum": ["online", "offline"] },
+        "color": { "type": "string", "description": "Optional color variants, comma-separated." },
+        "size": { "type": "string", "description": "Optional size variants, comma-separated." },
+        "audience": { "type": "array", "items": { "type": "string" }, "description": "Optional target audience, e.g., ['adults', 'children']." },
+        "gender": { "type": "string", "enum": ["men", "women", "unisex"], "description": "Optional target gender." },
+        "metaTitle": { "type": "string", "description": "SEO title for the product page." },
+        "metaDescription": { "type": "string", "description": "SEO description for search engines." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["businessId", "name", "price", "stock"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Represents a customer order from a business storefront.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "businessId": { "type": "string" },
+        "items": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" }
+            },
+            "required": ["productId", "quantity", "price"]
+          }
+        },
+        "totalAmount": { "type": "number" },
+        "status": { 
+          "type": "string", 
+          "enum": ["Received", "Awaiting Payment", "Packed", "Shipped", "Delivered/Collected", "Refunded", "Return to Stock"] 
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "shippingAddress": { "type": "string" }
+      },
+      "required": ["userId", "businessId", "items", "totalAmount", "status"]
+    },
+    "MarketingCampaign": {
+      "title": "MarketingCampaign",
+      "description": "Stores generated marketing copy for various campaigns.",
+      "type": "object",
+      "properties": {
+        "audience": { "type": "string" },
+        "feature": { "type": "string" },
+        "headline": { "type": "string" },
+        "body": { "type": "string" },
+        "socialMediaPost": { "type": "string" },
+        "coverImageUrl": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["audience", "feature", "headline", "body", "socialMediaPost", "createdAt"]
+    },
+    "LegalDocument": {
+      "title": "LegalDocument",
+      "description": "Represents a legal document like Terms of Service or Privacy Policy.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "content": { "type": "string", "description": "The full HTML content of the document." },
+        "status": { "type": "string", "enum": ["Published", "Draft", "Archived"] },
+        "version": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "status", "version", "createdAt", "lastUpdated"]
+    },
+     "MarketplaceItem": {
+      "title": "MarketplaceItem",
+      "description": "An item listed by a community member for sale, swap, or giveaway.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "ownerAvatar": { "type": "string", "format": "uri" },
+        "communityId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "listingType": { "type": "string", "enum": ["For Sale", "To Swap", "Free", "Looking For"] },
+        "price": { "type": "number" },
+        "image": { "type": "string", "format": "uri" },
+        "status": { "type": "string", "enum": ["active", "expired", "deleted"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "ownerName", "communityId", "title", "listingType", "status", "createdAt", "expiresAt"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ],
+    "customClaims": {
+      "$ref": "#/entities/Role"
+    }
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/entities/User"
+          },
+          "description": "Stores general user data, including roles and permissions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/audioTours/{tourId}",
+        "definition": {
+          "entityName": "AudioTour",
+          "schema": { "$ref": "#/entities/AudioTour" },
+          "description": "Stores audio tour data for the admin audio hub.",
+          "params": [
+            { "name": "tourId", "description": "The unique ID for the audio tour." }
+          ]
+        }
+      },
+      {
+        "path": "/platform_overview/content",
+        "definition": {
+          "entityName": "PlatformOverview",
+          "schema": { "$ref": "#/entities/PlatformOverview" },
+          "description": "Stores the lists of features and account types for the overview page."
+        }
+      },
+      {
+        "path": "/communities/{communityId}",
+        "definition": {
+          "entityName": "Community",
+          "schema": {
+            "$ref": "#/entities/Community"
+          },
+          "description": "Stores core listing data for each community.",
+          "params": [
+            {
+              "name": "communityId",
+              "description": "Unique identifier for the community."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/communities/{communityId}/posts/{postId}",
+        "definition": {
+          "entityName": "Post",
+          "schema": { "$ref": "#/entities/Post" },
+          "description": "Stores posts for a specific community feed.",
+          "params": [
+            { "name": "communityId", "description": "The ID of the community." },
+            { "name": "postId", "description": "The ID of the post." }
+          ]
+        }
+      },
+      {
+        "path": "/communities/{communityId}/posts/{postId}/comments/{commentId}",
+        "definition": {
+          "entityName": "Comment",
+          "schema": { "$ref": "#/entities/Comment" },
+          "description": "Stores comments for a specific post.",
+          "params": [
+            { "name": "communityId", "description": "The ID of the community." },
+            { "name": "postId", "description": "The ID of the post." },
+            { "name": "commentId", "description": "The ID of the comment." }
+          ]
+        }
+      },
+       {
+        "path": "/communities/{communityId}/marketplace/{itemId}",
+        "definition": {
+          "entityName": "MarketplaceItem",
+          "schema": { "$ref": "#/entities/MarketplaceItem" },
+          "description": "Stores user-generated listings for the community marketplace.",
+          "params": [
+            { "name": "communityId", "description": "The ID of the community." },
+            { "name": "itemId", "description": "The ID of the marketplace item." }
+          ]
+        }
+      },
+      {
+        "path": "/community_profiles/{communityId}",
+        "definition": {
+          "entityName": "CommunityProfile",
+          "schema": {
+            "$ref": "#/entities/CommunityProfile"
+          },
+          "description": "Stores the detailed profile for a single community. The document ID matches the community ID.",
+          "params": [
+            {
+              "name": "communityId",
+              "description": "Unique identifier for the community."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/gallery/{galleryImageId}",
+        "definition": {
+            "entityName": "GalleryImage",
+            "schema": { "$ref": "#/entities/GalleryImage" },
+            "description": "Stores gallery images for a specific user (e.g., national advertiser).",
+            "params": [
+                { "name": "userId", "description": "The ID of the user." },
+                { "name": "galleryImageId", "description": "The ID of the gallery image." }
+            ]
+        }
+      },
+       {
+        "path": "/access_requests/{requestId}",
+        "definition": {
+          "entityName": "AccessRequest",
+          "schema": {
+            "$ref": "#/entities/AccessRequest"
+          },
+          "description": "Stores applications for special system access.",
+          "params": [
+            {
+              "name": "requestId",
+              "description": "Unique identifier for the access request."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/businesses/{businessId}",
+        "definition": {
+          "entityName": "Business",
+          "schema": {
+            "$ref": "#/entities/Business"
+          },
+          "description": "Stores business profile data.",
+          "params": [
+            {
+              "name": "businessId",
+              "description": "Unique identifier for the business."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/businesses/{businessId}/products/{productId}",
+        "definition": {
+            "entityName": "Product",
+            "schema": { "$ref": "#/entities/Product" },
+            "description": "Stores products for a specific business storefront.",
+            "params": [
+                { "name": "businessId", "description": "The ID of the business." },
+                { "name": "productId", "description": "The ID of the product." }
+            ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}",
+        "definition": {
+            "entityName": "Order",
+            "schema": { "$ref": "#/entities/Order" },
+            "description": "Stores customer orders from storefronts.",
+            "params": [
+                { "name": "orderId", "description": "Unique identifier for the order." }
+            ]
+        }
+      },
+      {
+        "path": "/locations/{locationId}",
+        "definition": {
+          "entityName": "Location",
+          "schema": {
+            "$ref": "#/entities/Location"
+          },
+          "description": "Stores geographic data like countries, states, and regions.",
+          "params": [
+            {
+              "name": "locationId",
+              "description": "Unique identifier for the location."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/pricing_plans/business",
+        "definition": {
+            "entityName": "BusinessPlan",
+            "schema": { "$ref": "#/entities/BusinessPlan" },
+            "description": "Pricing for local businesses."
+        }
+      },
+      {
+        "path": "/pricing_plans/storefront",
+        "definition": {
+            "entityName": "StorefrontPlan",
+            "schema": { "$ref": "#/entities/StorefrontPlan" },
+            "description": "Pricing for the business storefront add-on."
+        }
+      },
+      {
+        "path": "/pricing_plans/enterprise",
+        "definition": {
+            "entityName": "EnterprisePlan",
+            "schema": { "$ref": "#/entities/EnterprisePlan" },
+            "description": "Pricing for enterprise partners."
+        }
+      },
+      {
+        "path": "/pricing_plans/advertiser",
+        "definition": {
+            "entityName": "AdvertiserPlan",
+            "schema": { "$ref": "#/entities/AdvertiserPlan" },
+            "description": "Pricing for national advertisers."
+        }
+      },
+      {
+        "path": "/communities/{communityId}/faqs/{faqId}",
+        "definition": {
+          "entityName": "FaqItem",
+          "schema": {
+            "$ref": "#/entities/FaqItem"
+          },
+          "description": "Stores FAQ items for a specific community.",
+          "params": [
+            {
+              "name": "communityId",
+              "description": "The ID of the community."
+            },
+            {
+              "name": "faqId",
+              "description": "The ID of the FAQ item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/communities/{communityId}/feedback/{feedbackId}",
+        "definition": {
+          "entityName": "Feedback",
+          "schema": { "$ref": "#/entities/Feedback" },
+          "description": "Stores feedback submissions for a specific community.",
+          "params": [
+            { "name": "communityId", "description": "The ID of the community." },
+            { "name": "feedbackId", "description": "The ID of the feedback item." }
+          ]
+        }
+      },
+      {
+        "path": "/charities/{charityId}",
+        "definition": {
+          "entityName": "Charity",
+          "schema": { "$ref": "#/entities/Charity" },
+          "description": "Stores listings for local charities and non-profits.",
+          "params": [
+            { "name": "charityId", "description": "The unique identifier for the charity." }
+          ]
+        }
+      },
+      {
+        "path": "/events/{eventId}",
+        "definition": {
+          "entityName": "Event",
+          "schema": { "$ref": "#/entities/Event" },
+          "description": "Stores community event data.",
+          "params": [
+            { "name": "eventId", "description": "The unique identifier for the event." }
+          ]
+        }
+      },
+      {
+        "path": "/whatson/{itemId}",
+        "definition": {
+          "entityName": "WhatsonItem",
+          "schema": { "$ref": "#/entities/WhatsonItem" },
+          "description": "Stores 'What's On' items like permanent venues and attractions.",
+          "params": [
+            { "name": "itemId", "description": "The unique identifier for the item." }
+          ]
+        }
+      },
+      {
+        "path": "/audit_log/{logId}",
+        "definition": {
+            "entityName": "AuditLogEntry",
+            "schema": { "$ref": "#/entities/AuditLogEntry" },
+            "description": "Stores records of significant administrator actions.",
+            "params": [
+                { "name": "logId", "description": "The unique ID for the log entry." }
+            ]
+        }
+      },
+      {
+        "path": "/community_reports/{reportId}",
+        "definition": {
+          "entityName": "Report",
+          "schema": {
+            "$ref": "#/entities/Report"
+          },
+          "description": "Stores reports submitted by users to their community leaders."
+        }
+      },
+      {
+        "path": "/platform_reports/{reportId}",
+        "definition": {
+          "entityName": "Report",
+          "schema": {
+            "$ref": "#/entities/Report"
+          },
+          "description": "Stores reports submitted by users directly to platform administrators."
+        }
+      },
+      {
+        "path": "/marketing_campaigns/{campaignId}",
+        "definition": {
+          "entityName": "MarketingCampaign",
+          "schema": {
+            "$ref": "#/entities/MarketingCampaign"
+          },
+          "description": "Stores generated marketing campaigns."
+        }
+      },
+      {
+        "path": "/legal_documents/{documentId}",
+        "definition": {
+          "entityName": "LegalDocument",
+          "schema": {
+            "$ref": "#/entities/LegalDocument"
+          },
+          "description": "Stores all legal documents for the platform."
+        }
+      }
+    ],
+    "reasoning": "Authorization is managed via a permissions object on the main user document to support multiple roles. To improve scalability, detailed community information is stored in a separate `/community_profiles/{communityId}` collection, linked from the main `/communities/{communityId}` document. This keeps the primary `communities` collection lean for efficient querying. User-specific data is keyed by UID to simplify security rules. Pricing plans are stored in a single collection with fixed document IDs for easy retrieval. Community-specific data like FAQs, Feedback, and Charities are stored in subcollections under the parent community document or in their own top-level collections for platform-wide access."
+  }
+}

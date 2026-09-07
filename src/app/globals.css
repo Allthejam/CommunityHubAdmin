@@ -1,0 +1,295 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 13% 95%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 197 76% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 45 100% 70%;
+    --accent-foreground: 45 100% 15%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 197 76% 53%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 197 76% 42%;
+    --sidebar-accent: 220 13% 95%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+  }
+
+  .dark {
+    --background: 220 13% 10%;
+    --foreground: 0 0% 98%;
+    --card: 220 13% 15%;
+    --card-foreground: 0 0% 98%;
+    --popover: 220 13% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 197 76% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 45 100% 70%;
+    --accent-foreground: 45 100% 15%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 197 76% 53%;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar-background: 220 13% 10%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 14.9%;
+    --sidebar-ring: 197 76% 53%;
+    --sidebar-accent: 0 0% 14.9%;
+    --sidebar-accent-foreground: 0 0% 98%;
+  }
+
+  .chat-theme.dark {
+    --background: 216 12% 14%;
+    --foreground: 210 40% 98%;
+    --card: 216 12% 18%;
+    --card-foreground: 210 40% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 16% 57%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 217 91% 60%;
+  }
+
+  .chat-theme.light {
+    --background: 220 13% 95%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+  }
+
+  .texture-grain::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background-image: url('https://i.postimg.cc/k47g3V1f/noisy-texture.png');
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: -1;
+  }
+   .card-texture-grain {
+    position: relative;
+    overflow: hidden;
+  }
+  .card-texture-grain::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url('https://i.postimg.cc/k47g3V1f/noisy-texture.png');
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .texture-linen {
+    background-color: #f7f7f7;
+    background-image: url('https://i.postimg.cc/qR5gC0zP/linen.png');
+  }
+  .chat-theme.dark .texture-linen {
+    background-color: #2c2c2c;
+    background-image: url('https://i.postimg.cc/qR5gC0zP/linen.png');
+    --card: hsl(220 13% 18% / 0.8);
+  }
+  .card-texture-linen {
+     background-image: url('https://i.postimg.cc/qR5gC0zP/linen.png');
+  }
+
+
+  .texture-paper {
+    background-color: #f7f3e9;
+    background-image: url('https://i.postimg.cc/PqjQVRRj/paper-texture.png');
+  }
+   .chat-theme.dark .texture-paper {
+    background-color: #3a3529;
+    background-image: url('https://i.postimg.cc/PqjQVRRj/paper-texture.png');
+  }
+  .card-texture-paper {
+     background-image: url('https://i.postimg.cc/PqjQVRRj/paper-texture.png');
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.map-embed-container > iframe {
+    @apply w-full h-full;
+}
+
+@media (max-width: 767px) {
+  .responsive-table .table-header {
+    display: none;
+  }
+  .responsive-table .table-row {
+    display: block;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .responsive-table .table-cell {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .responsive-table .table-cell:last-child {
+    border-bottom: 0;
+  }
+  .responsive-table .table-cell:before {
+    content: attr(data-label);
+    font-weight: 600;
+    margin-right: 1rem;
+  }
+}
+
+/* New Chat Styles */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+.section-divider {
+    border: none; 
+    height: 1px; 
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(150, 150, 150, 0.75), rgba(0, 0, 0, 0));
+    margin: 1rem 0;
+}
+.msg-bubble-left {
+    margin-left: 0;
+    margin-right: 20%;
+    border-bottom-left-radius: 4px;
+}
+.msg-bubble-right {
+    margin-left: 20%;
+    margin-right: 0;
+    border-bottom-right-radius: 4px;
+}
+.popover-animate {
+    transform-origin: bottom left;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#resizer {
+    width: 4px;
+    cursor: col-resize;
+    background-color: transparent;
+    transition: background-color 0.2s;
+    z-index: 50;
+}
+#resizer:hover, #resizer.resizing {
+    background-color: #6366f1;
+}
+
+@media (max-width: 768px) {
+    #resizer { display: none; }
+}
+
+#chatFooter {
+    min-height: 80px;
+}
+
+.message-appear {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 180s linear infinite;
+}
+
+@layer utilities {
+  @media print {
+    header,
+    footer,
+    .no-print {
+      display: none !important;
+    }
+    main {
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    body {
+      background-color: white !important;
+    }
+  }
+}

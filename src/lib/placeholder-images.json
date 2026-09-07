@@ -1,0 +1,52 @@
+{
+  "placeholderImages": [
+    {
+      "id": "about-us-community-event",
+      "description": "A vibrant community event with families and friends enjoying themselves outdoors.",
+      "imageUrl": "https://i.postimg.cc/Bnf3rtsn/about-us-2.jpg",
+      "imageHint": "community event"
+    },
+    {
+      "id": "about-us-app-on-phone",
+      "description": "A phone screen showing the community hub app interface with a clean and modern design.",
+      "imageUrl": "https://i.postimg.cc/j256rXJ4/Advert-Main-1.jpg",
+      "imageHint": "app on phone"
+    },
+    {
+      "id": "about-us-tourist-info",
+      "description": "A smartphone displaying tourist information about a local area, held by a person.",
+      "imageUrl": "https://i.postimg.cc/VvsHDMzN/About-us-4-0.jpg",
+      "imageHint": "tourist information phone"
+    },
+    {
+      "id": "about-us-private-hub",
+      "description": "A stylized graphic representing a secure, private digital space for a group meeting.",
+      "imageUrl": "https://i.postimg.cc/qqpgXRgY/Private-Hubs.png",
+      "imageHint": "private meeting"
+    },
+    {
+      "id": "about-us-high-street",
+      "description": "A charming and bustling high street with local shops and people shopping.",
+      "imageUrl": "https://i.postimg.cc/k4sT01w0/s2.jpg",
+      "imageHint": "high street shopping"
+    },
+    {
+      "id": "about-us-ios-instructions",
+      "description": "A diagram showing how to add the app to the home screen on an iOS device.",
+      "imageUrl": "https://i.postimg.cc/6q7CW500/i-OS-instructions.jpg",
+      "imageHint": "ios instructions"
+    },
+    {
+      "id": "about-us-android-instructions",
+      "description": "A diagram showing how to add the app to the home screen on an Android device.",
+      "imageUrl": "https://i.postimg.cc/NMC1vr1F/On-Android.jpg",
+      "imageHint": "android instructions"
+    },
+    {
+      "id": "about-us-shortcuts",
+      "description": "A smartphone displaying app shortcuts for Community Feed, Highstreet, and Chat.",
+      "imageUrl": "https://i.postimg.cc/0NLyM3kh/Gemini-Generated-Image-ifji5cifji5cifji.jpg",
+      "imageHint": "app shortcuts"
+    }
+  ]
+}

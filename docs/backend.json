@@ -1,0 +1,169 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a platform user, including their core profile, roles, and permissions.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "avatar": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "description": "The user's primary role for default navigation." },
+        "title": { "type": "string", "description": "The user's primary title, e.g., 'President'." },
+        "accountType": { "type": "string", "description": "The original account type chosen at signup." },
+        "homeCommunityId": { "type": "string", "description": "The user's primary, home community." },
+        "communityId": { "type": "string", "description": "The community the user is currently viewing." },
+        "communityName": { "type": "string", "description": "The name of the community the user is currently viewing." },
+        "memberOf": {
+            "type": "array",
+            "description": "An array of community IDs the user is a member of.",
+            "items": { "type": "string" }
+        },
+        "permissions": {
+            "type": "object",
+            "description": "A map of boolean flags for user permissions.",
+            "properties": {
+                "isLeader": { "type": "boolean" },
+                "isBusinessOwner": { "type": "boolean" },
+                "isEnterpriseUser": { "type": "boolean" },
+                "hasBroadcastAccess": { "type": "boolean" },
+                "isAdmin": { "type": "boolean" },
+                "isStaff": { "type": "boolean", "description": "Flag indicating global platform staff status." },
+                "isReporter": { "type": "boolean" },
+                "isNationalAdvertiser": { "type": "boolean" },
+                "isCourier": { "type": "boolean" },
+                "viewCareers": { "type": "boolean" },
+                "actionManageCareers": { "type": "boolean" }
+            }
+        },
+        "communityRoles": {
+            "type": "object",
+            "description": "A map where keys are community IDs and values define the user's role in that community.",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "role": { "type": "string" },
+                    "title": { "type": "string" }
+                }
+            }
+        },
+        "ownedBusinessIds": {
+            "type": "array",
+            "description": "An array of business IDs that the user owns.",
+            "items": { "type": "string" }
+        },
+        "cart": {
+            "type": "array",
+            "description": "The user's shopping cart items.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "productId": { "type": "string" },
+                    "quantity": { "type": "number" },
+                    "businessId": { "type": "string" }
+                },
+                "required": ["productId", "quantity", "businessId"]
+            }
+        },
+        "settings": {
+            "type": "object",
+            "description": "User-specific settings and preferences.",
+            "properties": {
+                "publicProfile": { "type": "boolean" },
+                "adPersonalization": { "type": "boolean" },
+                "selectedCategories": { "type": "array", "items": { "type": "string" } },
+                "darkMode": { "type": "boolean" },
+                "theme": {
+                    "type": "object",
+                    "properties": {
+                        "background": { "type": "string" },
+                        "card": { "type": "string" },
+                        "primary": { "type": "string" }
+                    }
+                }
+            }
+        },
+        "termsAcceptedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the user accepted the terms and cookie policy."
+        }
+      },
+      "required": ["name", "email"]
+    },
+    "GalleryImage": {
+      "title": "GalleryImage",
+      "description": "A marketing asset shared platform-wide or stored privately.",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "path": { "type": "string" },
+        "description": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isImported": { "type": "boolean" }
+      },
+      "required": ["url", "path", "createdAt"]
+    },
+    "FeaturedConfig": {
+      "title": "FeaturedConfig",
+      "description": "Stores the selection of exactly 5 shopping categories to be showcased on the public featured page, including automation settings.",
+      "type": "object",
+      "properties": {
+        "selectedIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs from the shopping taxonomy (Master Verticals or Sub-categories)."
+        },
+        "isAutomated": { "type": "boolean", "description": "Whether categories should rotate automatically." },
+        "intervalHours": { "type": "number", "description": "The rotation frequency in hours." },
+        "lastRotationAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["selectedIds"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ],
+    "customClaims": {
+      "isStaff": { "type": "boolean", "description": "Master key for global platform staff access." },
+      "isAdmin": { "type": "boolean", "description": "Legacy master key for administrative access." }
+    }
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/entities/User"
+          },
+          "description": "Stores general user data, including roles and permissions."
+        }
+      },
+      {
+        "path": "/platform_marketing_gallery/{imageId}",
+        "definition": {
+          "entityName": "GalleryImage",
+          "schema": { "$ref": "#/entities/GalleryImage" },
+          "description": "Master library of marketing assets shared with all community leaders."
+        }
+      },
+      {
+        "path": "/platform_settings/shoppingHome_config",
+        "definition": {
+          "entityName": "FeaturedConfig",
+          "schema": { "$ref": "#/entities/FeaturedConfig" },
+          "description": "Specific configuration for curated categories on the shopping home/featured page."
+        }
+      }
+    ]
+  }
+}

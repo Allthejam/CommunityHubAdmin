@@ -1,0 +1,45 @@
+
+export const countries = [
+    { value: 'gb', label: 'United Kingdom' },
+    { value: 'us', label: 'United States' },
+    { value: 'ca', label: 'Canada' },
+    { value: 'au', label: 'Australia' },
+    { value: 'nz', label: 'New Zealand' },
+];
+
+export const scotlandRegions = [
+    { value: 'Aberdeen City', label: 'Aberdeen City' },
+    { value: 'Aberdeenshire', label: 'Aberdeenshire' },
+    { value: 'Angus', label: 'Angus' },
+    { value: 'Argyll and Bute', label: 'Argyll and Bute' },
+    { value: 'City of Edinburgh', label: 'City of Edinburgh' },
+    { value: 'Clackmannanshire', label: 'Clackmannanshire' },
+    { value: 'Dumfries and Galloway', label: 'Dumfries and Galloway' },
+    { value: 'Dundee City', label: 'Dundee City' },
+    { value: 'East Ayrshire', label: 'East Ayrshire' },
+    { value: 'East Dunbartonshire', label: 'East Dunbartonshire' },
+    { value: 'East Lothian', label: 'East Lothian' },
+    { value: 'East Renfrewshire', label: 'East Renfrewshire' },
+    { value: 'Falkirk', label: 'Falkirk' },
+    { value: 'Fife', label: 'Fife' },
+    { value: 'Glasgow City', label: 'Glasgow City' },
+    { value: 'Highland', label: 'Highland' },
+    { value: 'Inverclyde', label: 'Inverclyde' },
+    { value: 'Midlothian', label: 'Midlothian' },
+    { value: 'Moray', label: 'Moray' },
+    { value: 'Na h-Eileanan Siar', label: 'Na h-Eileanan Siar' },
+    { value: 'North Ayrshire', label: 'North Ayrshire' },
+    { value: 'North Lanarkshire', label: 'North Lanarkshire' },
+    { value: 'Orkney Islands', label: 'Orkney Islands' },
+    { value: 'Perth and Kinross', label: 'Perth and Kinross' },
+    { value: 'Renfrewshire', label: 'Renfrewshire' },
+    { value: 'Scottish Borders', label: 'Scottish Borders' },
+    { value: 'Shetland Islands', label: 'Shetland Islands' },
+    { value: 'South Ayrshire', label: 'South Ayrshire' },
+    { value: 'South Lanarkshire', label: 'South Lanarkshire' },
+    { value: 'Stirling', label: 'Stirling' },
+    { value: 'West Dunbartonshire', label: 'West Dunbartonshire' },
+    { value: 'West Lothian', label: 'West Lothian' },
+];
+
+    

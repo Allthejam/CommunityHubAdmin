@@ -1,0 +1,159 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Authoritative Platform Staff check
+    // Distinguishes Global Staff from Local Community Admins
+    function isStaff() {
+      return isSignedIn() && (
+        request.auth.token.isStaff == true || 
+        request.auth.token.isAdmin == true
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Explicit check for the 'owner' role field on the user document
+    function isPlatformOwner() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    function isBusinessOwner(businessId) {
+      let businessDoc = get(/databases/$(database)/documents/businesses/$(businessId));
+      return isSignedIn() && businessDoc != null && businessDoc.data.ownerId == request.auth.uid;
+    }
+
+    function communityHasNoLeader(communityId) {
+      let communityDoc = get(/databases/$(database)/documents/communities/$(communityId));
+      return communityDoc != null && communityDoc.data.leaderCount == 0;
+    }
+
+    function isLeaderOf(communityId) {
+        let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+        return isSignedIn() && 
+               userDoc.data.communityRoles != null && 
+               communityId in userDoc.data.communityRoles &&
+               userDoc.data.communityRoles[communityId].role in ['president', 'leader'];
+    }
+
+    // Whitelist access. 
+    // Any signed-in user can 'get' their own specific whitelist entry for verification during login.
+    match /authorized_logins/{loginId} {
+      allow get: if isSignedIn();
+      allow list, write: if isStaff();
+    }
+
+    // OWNER LEGACY VAULT: EXPLICIT OWNER ONLY
+    match /owner_legacy/{docId} {
+        allow read, write: if isPlatformOwner();
+    }
+
+    // STAFF PROFILES: SELF-SERVICE PROTOCOL
+    match /staff_profiles/{userId} {
+        // Owners and managers can view any profile, staff can view their own
+        allow read, write: if isOwner(userId) || isStaff() || isPlatformOwner();
+        
+        match /appraisals/{appraisalId} {
+            // Appraisals are restricted to Management review only
+            allow read, write: if isStaff() || isPlatformOwner(); 
+        }
+    }
+
+    match /communities/{communityId} {
+      allow create: if isStaff() || isPlatformOwner();
+      allow read: if true;
+      allow update: if isLeaderOf(communityId) || isStaff() || isPlatformOwner();
+    }
+    
+    match /whatson/{itemId} {
+      allow create, update: if (isStaff() && communityHasNoLeader(request.resource.data.communityId)) || isLeaderOf(request.resource.data.communityId) || isStaff() || isPlatformOwner();
+      allow read: if true;
+    }
+
+    match /events/{eventId} {
+      allow create, update: if (isStaff() && communityHasNoLeader(request.resource.data.communityId)) || isLeaderOf(request.resource.data.communityId) || isStaff() || isPlatformOwner();
+      allow read: if true;
+    }
+
+    match /businesses/{businessId} {
+        allow update: if (isStaff() && communityHasNoLeader(resource.data.primaryCommunityId)) || isLeaderOf(resource.data.primaryCommunityId) || isStaff() || isBusinessOwner(businessId) || isPlatformOwner();
+        allow read: if true;
+        allow create: if isBusinessOwner(businessId) || isStaff() || isPlatformOwner();
+    }
+
+    match /user_accounts/{accountId} {
+      allow read, write: if isOwner(accountId) || isStaff() || isPlatformOwner();
+    }
+
+    match /user_profiles/{profileId} {
+      allow read, write: if isOwner(profileId) || isStaff() || isPlatformOwner();
+    }
+    
+    match /audit_log/{logId} {
+        allow read, write: if isStaff() || isPlatformOwner();
+    }
+    
+    match /access_requests/{requestId} {
+        allow read, write: if isStaff() || isPlatformOwner();
+    }
+    
+    match /communities/{communityId}/posts/{postId} {
+      allow read: if true;
+      allow create, update, delete: if isOwner(request.resource.data.authorId) || isLeaderOf(communityId) || isStaff() || isPlatformOwner();
+    }
+    
+    match /communities/{communityId}/posts/{postId}/comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow delete: if isStaff() || isLeaderOf(communityId) || isPlatformOwner();
+    }
+    
+    match /communities/{communityId}/marketplace/{itemId} {
+        allow read: if isSignedIn();
+        allow create: if request.auth.uid == request.resource.data.ownerId;
+        allow update, delete: if request.auth.uid == resource.data.ownerId || isStaff() || isPlatformOwner();
+    }
+
+    match /orders/{orderId} {
+      allow get, update: if isSignedIn() && (isOwner(resource.data.userId) || resource.data.businessOwnerId == request.auth.uid || isStaff() || isPlatformOwner());
+      allow create: if isSignedIn();
+      allow list: if isStaff() || isPlatformOwner() || request.query.where.businessOwnerId == request.auth.uid;
+    }
+
+    match /users/{userId}/recent_orders/{orderId} {
+        allow read, write: if isOwner(userId) || isPlatformOwner();
+    }
+    
+    match /businesses/{businessId}/products/{productId}/product_data/variations {
+        allow read: if true;
+        allow write: if isBusinessOwner(businessId) || isStaff() || isPlatformOwner();
+    }
+
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /careers/{careerId} {
+      allow read: if true;
+      allow write: if isStaff() || isPlatformOwner();
+    }
+
+    match /jobSeekers/{seekerId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /{document=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+  }
+}
