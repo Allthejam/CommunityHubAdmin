@@ -4,6 +4,9 @@ import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import 'server-only'; // Ensures this module is only used on the server
 
+import * as fs from 'fs';
+import * as path from 'path';
+
 let adminApp: App;
 
 /**
@@ -19,17 +22,20 @@ function createAdminApp(): App {
     return existingApp;
   }
 
-  // Explicitly load the service account key from env or local file.
+  // Explicitly load the service account key from env or local file if present.
   try {
-    let serviceAccount: any;
+    let serviceAccount: any = null;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
     } else {
-      try {
-        serviceAccount = require('../../service-account.json');
-      } catch {
-        // Fallback for different execution contexts
-        serviceAccount = null;
+      const saPath = path.join(process.cwd(), 'service-account.json');
+      if (fs.existsSync(saPath)) {
+        try {
+          const raw = fs.readFileSync(saPath, 'utf8');
+          serviceAccount = JSON.parse(raw);
+        } catch (readErr) {
+          console.warn('Could not parse local service-account.json:', readErr);
+        }
       }
     }
 

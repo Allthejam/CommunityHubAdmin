@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack -p 9010",
     "genkit:dev": "genkit start --dotenv -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start --dotenv -- tsx --watch src/ai/dev.ts",
-    "build": "NODE_ENV=production next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"

@@ -27,6 +27,10 @@ import {
     Sparkles,
     Inbox,
     Filter,
+    Clock,
+    UserCircle,
+    FileText,
+    Trash2,
 } from "lucide-react"
 import { collection, query, where, doc, orderBy, or, onSnapshot } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
