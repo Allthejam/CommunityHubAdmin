@@ -27,6 +27,17 @@ interface CommunityMapViewProps {
   onUpdateBoundary?: (geoJson: any) => void;
 }
 
+function parseGeoJson(raw: any) {
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn("Could not parse GeoJSON:", err);
+    return null;
+  }
+}
+
 /**
  * Controller component to handle map interactions like panning and zooming
  * to a selected community.
@@ -39,7 +50,8 @@ function MapController({ selectedId, boundaries, isEditMode }: { selectedId: str
       const comm = boundaries.find(b => b.id === selectedId);
       if (comm && comm.boundary) {
         try {
-          const geoData = JSON.parse(comm.boundary);
+          const geoData = parseGeoJson(comm.boundary);
+          if (!geoData) return;
           const layer = L.geoJSON(geoData);
           const bounds = layer.getBounds();
           
@@ -76,7 +88,8 @@ export default function CommunityMapView({ boundaries, selectedId, isEditMode = 
       const comm = boundaries.find(b => b.id === selectedId);
       if (comm && comm.boundary) {
         try {
-          const geoData = JSON.parse(comm.boundary);
+          const geoData = parseGeoJson(comm.boundary);
+          if (!geoData) return;
           // Create Leaflet layers from the GeoJSON
           const layer = L.geoJSON(geoData);
           // Add each individual polygon/shape to the FeatureGroup managed by EditControl
@@ -152,14 +165,18 @@ export default function CommunityMapView({ boundaries, selectedId, isEditMode = 
         if (isEditMode && selectedId === comm.id) return null;
         
         try {
-          const geoData = JSON.parse(comm.boundary);
+          const geoData = parseGeoJson(comm.boundary);
+          if (!geoData) return null;
+
           const isSelected = selectedId === comm.id;
           const isLocked = comm.isLocked;
+          const feature = geoJsonDataToFeature(geoData);
+          if (!feature) return null;
 
           return (
             <GeoJSON 
               key={`${comm.id}-${isSelected ? 'selected' : 'unselected'}-${isLocked ? 'locked' : 'unlocked'}`} 
-              data={geoJsonDataToFeature(geoData)}
+              data={feature}
               style={{
                 color: isSelected ? '#f59e0b' : (isLocked ? '#10b981' : '#0ea5e9'),
                 weight: isSelected ? 3 : 2,
@@ -212,10 +229,19 @@ export default function CommunityMapView({ boundaries, selectedId, isEditMode = 
 
 // Helper to ensure GeoJSON is treated as a Feature
 function geoJsonDataToFeature(data: any) {
+    if (!data) return null;
     if (data.type === 'Feature') return data;
+    if (data.type === 'FeatureCollection') return data;
+    if (data.type === 'Polygon' || data.type === 'MultiPolygon') {
+        return {
+            type: 'Feature',
+            properties: {},
+            geometry: data
+        };
+    }
     return {
         type: 'Feature',
         properties: {},
-        geometry: data
+        geometry: data.geometry || data
     };
 }

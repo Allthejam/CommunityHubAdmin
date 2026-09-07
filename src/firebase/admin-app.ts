@@ -26,8 +26,21 @@ function createAdminApp(): App {
   try {
     let serviceAccount: any = null;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    } else {
+      try {
+        const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+        if (rawKey.startsWith('{')) {
+          serviceAccount = JSON.parse(rawKey);
+        } else {
+          // Attempt Base64 decode
+          const decoded = Buffer.from(rawKey, 'base64').toString('utf8');
+          serviceAccount = JSON.parse(decoded);
+        }
+      } catch (parseErr) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', parseErr);
+      }
+    }
+
+    if (!serviceAccount) {
       const saPath = path.join(process.cwd(), 'service-account.json');
       if (fs.existsSync(saPath)) {
         try {

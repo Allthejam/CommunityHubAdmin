@@ -58,11 +58,11 @@ export default function CommunityMapPage() {
       if (result.success) {
         setBoundaries(result.data);
       } else {
-        toast({ title: 'Error', description: 'Could not load community boundaries.', variant: 'destructive' });
+        toast({ title: 'Notice', description: result.error || 'Could not load community boundaries.', variant: 'destructive' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch boundaries:", err);
-      toast({ title: 'Error', description: 'Failed to fetch boundary data.', variant: 'destructive' });
+      toast({ title: 'Error', description: err?.message || 'Failed to fetch boundary data.', variant: 'destructive' });
     } finally {
       setLoading(false);
     }

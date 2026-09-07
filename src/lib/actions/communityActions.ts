@@ -269,7 +269,7 @@ export async function runSavePoliceLiaison(params: {
   try {
     const communityRef = firestore.collection('communities').doc(params.communityId);
     await communityRef.update({ policeContact: params.policeContact });
-    return { true: true };
+    return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -296,6 +296,79 @@ export async function runToggleCommunityLock(params: { communityId: string; isLo
     } catch (error: any) {
         console.error("Error toggling community lock:", error);
         return { success: false, error: error.message };
+    }
+}
+
+export async function runGetAllBoundaries(): Promise<{ success: boolean; data: any[]; error?: string }> {
+    try {
+        const { firestore } = initializeAdminApp();
+        
+        // Query communities collection
+        const communitiesSnapshot = await firestore.collection('communities').get();
+        const boundaries: any[] = [];
+        const seenIds = new Set<string>();
+
+        communitiesSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const rawBoundary = data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+            if (rawBoundary) {
+                let boundaryStr = '';
+                if (typeof rawBoundary === 'string') {
+                    boundaryStr = rawBoundary;
+                } else if (typeof rawBoundary === 'object') {
+                    boundaryStr = JSON.stringify(rawBoundary);
+                }
+
+                if (boundaryStr && !seenIds.has(doc.id)) {
+                    seenIds.add(doc.id);
+                    boundaries.push({
+                        id: doc.id,
+                        name: data.name || data.communityName || 'Community',
+                        boundary: boundaryStr,
+                        isLocked: Boolean(data.isLocked),
+                        status: data.status || 'active',
+                        region: data.region || data.state || '',
+                    });
+                }
+            }
+        });
+
+        // Also check locations collection if any boundaries are registered there
+        try {
+            const locationsSnapshot = await firestore.collection('locations').get();
+            locationsSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                const rawBoundary = data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+                if (rawBoundary && !seenIds.has(doc.id)) {
+                    let boundaryStr = '';
+                    if (typeof rawBoundary === 'string') {
+                        boundaryStr = rawBoundary;
+                    } else if (typeof rawBoundary === 'object') {
+                        boundaryStr = JSON.stringify(rawBoundary);
+                    }
+
+                    if (boundaryStr) {
+                        seenIds.add(doc.id);
+                        boundaries.push({
+                            id: doc.id,
+                            name: data.name || data.communityName || 'Location',
+                            boundary: boundaryStr,
+                            isLocked: Boolean(data.isLocked),
+                            status: data.status || 'active',
+                            region: data.region || data.state || '',
+                        });
+                    }
+                }
+            });
+        } catch (locErr) {
+            // locations collection might not exist or have different permissions, which is safe to ignore
+            console.warn("Locations boundary check skipped:", locErr);
+        }
+
+        return { success: true, data: boundaries };
+    } catch (error: any) {
+        console.error("Error fetching all boundaries:", error);
+        return { success: false, data: [], error: error.message || 'Firestore connection error' };
     }
 }
 
@@ -352,23 +425,3 @@ function serializeData(data: any): any {
     return serialized;
 }
 
-export async function runGetAllBoundaries(): Promise<{ success: boolean; data: any[]; error?: string }> {
-    try {
-        const { firestore } = initializeAdminApp();
-        const communitiesSnapshot = await firestore.collection('communities').get();
-        const boundaries = communitiesSnapshot.docs
-            .map(doc => {
-                const data = doc.data();
-                // Ensure all fields (including nested ones like freeListingGrantedAt) are serializable
-                return {
-                    id: doc.id,
-                    ...serializeData(data)
-                };
-            })
-            .filter(item => !!item.boundary); 
-        return { success: true, data: boundaries };
-    } catch (error: any) {
-        console.error("Error fetching all boundaries:", error);
-        return { success: false, data: [], error: error.message };
-    }
-}
