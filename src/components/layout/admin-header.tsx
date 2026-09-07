@@ -138,7 +138,6 @@ const teamManagementMenuItems = [
 ];
 
 const announcementMenuItems = [
-    { href: '/admin/emergency-plans', label: 'Emergency Plans & Threat Matrix', icon: ShieldAlert },
     { href: '/admin/announcements', label: 'Announcements', icon: Megaphone },
     { href: '/admin/emergency-broadcasts', label: 'Broadcast Log', icon: FileClock },
     { href: '/admin/special-access', label: 'Special Access', icon: KeyRound },
