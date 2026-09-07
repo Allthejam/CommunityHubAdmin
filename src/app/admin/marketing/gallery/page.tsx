@@ -16,7 +16,6 @@ import {
   Upload,
   Info,
   GalleryHorizontal,
-  RefreshCw,
   Search,
   Globe,
   Lock,
@@ -39,7 +38,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { addGalleryImageAction, deleteGalleryImageAction, updateGalleryImageDescriptionAction, syncStorageGalleryAction } from "@/lib/actions/galleryActions";
+import { addGalleryImageAction, deleteGalleryImageAction, updateGalleryImageDescriptionAction } from "@/lib/actions/galleryActions";
 import { Input } from "@/components/ui/input";
 import { useDebouncedCallback } from "use-debounce";
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +61,6 @@ export default function MarketingGalleryPage() {
   const { toast } = useToast();
 
   const [isUploading, setIsUploading] = React.useState(false);
-  const [isSyncing, setIsSyncing] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [imageToDelete, setImageToDelete] = React.useState<GalleryImage | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -80,26 +78,6 @@ export default function MarketingGalleryPage() {
 
   const loading = authLoading || imagesLoading;
   const currentImageCount = images?.length ?? 0;
-
-  const handleSyncWithStorage = async () => {
-      if (!user) return;
-      setIsSyncing(true);
-      try {
-          const result = await syncStorageGalleryAction({ userId: user.uid });
-          if (result.success) {
-              toast({ 
-                  title: "Synchronization Complete", 
-                  description: `Found and indexed ${result.count} new platform assets from the global Storage bucket.` 
-              });
-          } else {
-              throw new Error(result.error);
-          }
-      } catch (error: any) {
-          toast({ title: "Sync Failed", description: error.message, variant: "destructive" });
-      } finally {
-          setIsSyncing(false);
-      }
-  }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user) return;
@@ -219,16 +197,6 @@ export default function MarketingGalleryPage() {
                 Manage the master library of marketing assets. Images here are visible to <strong>all Community Leaders</strong>.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleSyncWithStorage} disabled={isSyncing} variant="outline" className="font-bold gap-2 h-12">
-                {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Sync from Root Storage
-            </Button>
-            <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="font-black uppercase tracking-tighter gap-2 h-12 shadow-lg">
-                {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Deploy New Assets
-            </Button>
-          </div>
         </div>
 
         <AlertDialog onOpenChange={(open) => !open && setImageToDelete(null)}>
@@ -329,7 +297,7 @@ export default function MarketingGalleryPage() {
                                         <div className="p-3 rounded-full bg-muted group-hover:bg-primary/10 mb-2 transition-colors">
                                             <Upload className="h-6 w-6" />
                                         </div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest">Deploy Asset</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest">Upload Asset</p>
                                     </>
                                     )}
                                 </div>
