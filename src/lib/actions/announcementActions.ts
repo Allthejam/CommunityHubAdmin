@@ -421,37 +421,50 @@ export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
     const now = new Date();
 
     try {
-        console.log(`[Maintenance] Starting announcement sweep for items past expiration or older than 14 days...`);
+        console.log(`[Maintenance] Starting announcement & regional broadcasts sweep...`);
         
-        // Fetch announcements and perform in-memory evaluation to avoid Firestore composite index requirement
-        const snapshot = await firestore.collection('announcements').get();
-        
-        // Filter for stale/expired documents
-        const staleDocs = snapshot.docs.filter(doc => {
+        // 1. Fetch announcements
+        const announcementsSnap = await firestore.collection('announcements').get();
+        const staleAnnouncementDocs = announcementsSnap.docs.filter(doc => {
             const data = doc.data();
             const status = (data.status || '').toLowerCase();
             if (status === 'archived') return false;
 
-            // 1. If explicit endDate is provided and has passed -> archive
             if (data.endDate) {
                 const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
-                if (endDate && !isNaN(endDate.getTime()) && endDate < now) {
-                    return true;
-                }
+                if (endDate && !isNaN(endDate.getTime()) && endDate < now) return true;
             }
-
-            // 2. If NO endDate is provided and item was created > 14 days ago -> archive
             if (!data.endDate) {
                 const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : null;
-                if (createdAt && !isNaN(createdAt.getTime()) && createdAt < cutoffDate) {
-                    return true;
-                }
+                if (createdAt && !isNaN(createdAt.getTime()) && createdAt < cutoffDate) return true;
             }
-
             return false;
         });
 
-        if (staleDocs.length === 0) {
+        // 2. Fetch regionalBroadcasts
+        let staleRegionalDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+        try {
+            const regSnapshot = await firestore.collection('regionalBroadcasts').get();
+            staleRegionalDocs = regSnapshot.docs.filter(doc => {
+                const data = doc.data();
+                const status = (data.status || '').toLowerCase();
+                if (status === 'archived') return false;
+
+                if (data.endDate) {
+                    const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
+                    if (endDate && !isNaN(endDate.getTime()) && endDate < now) return true;
+                }
+                if (!data.endDate && data.createdAt) {
+                    const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                    if (createdAt && !isNaN(createdAt.getTime()) && createdAt < cutoffDate) return true;
+                }
+                return false;
+            });
+        } catch (regErr) {
+            console.warn("[Maintenance] Regional collection scan warning:", regErr);
+        }
+
+        if (staleAnnouncementDocs.length === 0 && staleRegionalDocs.length === 0) {
             return { success: true, count: 0 };
         }
 
@@ -459,7 +472,7 @@ export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
         let totalUpdated = 0;
         let currentBatch = firestore.batch();
 
-        for (const doc of staleDocs) {
+        for (const doc of staleAnnouncementDocs) {
             const historyEntry = {
                 status: 'Archived',
                 actorId: 'system_maintenance',
@@ -480,45 +493,23 @@ export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
             }
         }
 
-        // Also sweep regionalBroadcasts collection for expired broadcasts
-        try {
-            const regSnapshot = await firestore.collection('regionalBroadcasts').get();
-            const staleRegDocs = regSnapshot.docs.filter(doc => {
-                const data = doc.data();
-                const status = (data.status || '').toLowerCase();
-                if (status === 'archived') return false;
-
-                if (data.endDate) {
-                    const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
-                    if (endDate && !isNaN(endDate.getTime()) && endDate < now) return true;
-                }
-                if (!data.endDate && data.createdAt) {
-                    const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-                    if (createdAt && !isNaN(createdAt.getTime()) && createdAt < cutoffDate) return true;
-                }
-                return false;
+        for (const doc of staleRegionalDocs) {
+            currentBatch.update(doc.ref, {
+                status: 'Archived',
+                updatedAt: Timestamp.now()
             });
-
-            for (const doc of staleRegDocs) {
-                currentBatch.update(doc.ref, {
-                    status: 'Archived',
-                    updatedAt: Timestamp.now()
-                });
-                totalUpdated++;
-                if (totalUpdated % batchSize === 0) {
-                    await currentBatch.commit();
-                    currentBatch = firestore.batch();
-                }
+            totalUpdated++;
+            if (totalUpdated % batchSize === 0) {
+                await currentBatch.commit();
+                currentBatch = firestore.batch();
             }
-        } catch (regErr) {
-            console.warn("[Maintenance] Regional broadcasts sweep skipped or empty:", regErr);
         }
 
         if (totalUpdated % batchSize !== 0) {
             await currentBatch.commit();
         }
 
-        console.log(`[Maintenance] Successfully archived ${totalUpdated} stale announcements.`);
+        console.log(`[Maintenance] Successfully archived ${totalUpdated} stale broadcasts.`);
         return { success: true, count: totalUpdated };
 
     } catch (error: any) {

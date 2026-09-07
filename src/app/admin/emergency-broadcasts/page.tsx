@@ -641,18 +641,20 @@ export default function AdminEmergencyPage() {
   }, [toast, db, user]);
 
   const handleMaintenanceSweep = async () => {
-    if (!confirm("Are you sure you want to archive all broadcasts that have been active for more than 14 days without an expiry date?")) return;
-    
     setIsCleaning(true);
     try {
         const result = await runAnnouncementCleanupAction();
         if (result.success) {
-            toast({ title: "Sweep Complete", description: `Successfully archived ${result.count} stale broadcasts.` });
+            if (result.count && result.count > 0) {
+                toast({ title: "Sweep Complete", description: `Archived ${result.count} stale/expired broadcast(s) across community and regional network feeds.` });
+            } else {
+                toast({ title: "Platform Fully Synchronized", description: "All active and regional broadcasts are current. No stale items required archiving." });
+            }
         } else {
             throw new Error(result.error);
         }
     } catch (error: any) {
-        toast({ title: "Sweep Failed", description: error.message, variant: "destructive" });
+        toast({ title: "Sweep Failed", description: error.message || "An unexpected error occurred.", variant: "destructive" });
     } finally {
         setIsCleaning(false);
     }
@@ -861,28 +863,31 @@ export default function AdminEmergencyPage() {
                             {staleCount > 0 ? `${staleCount} stale broadcasts` : "All broadcasts current"}
                         </p>
                     </div>
-                    {staleCount > 0 && (
-                        <div className="flex gap-2 ml-2">
+                    <div className="flex items-center gap-2 ml-auto">
+                        {staleCount > 0 && (
                             <Button 
                                 size="sm" 
                                 variant={showStaleOnly ? "secondary" : "outline"}
-                                className="font-black uppercase text-[10px] tracking-widest"
+                                className="font-black uppercase text-[10px] tracking-widest h-8"
                                 onClick={() => setShowStaleOnly(!showStaleOnly)}
                             >
                                 {showStaleOnly ? <FilterX className="h-3 w-3 mr-1.5" /> : <Info className="h-3 w-3 mr-1.5" />}
                                 {showStaleOnly ? "Show All" : "Review"}
                             </Button>
-                            <Button 
-                                size="sm" 
-                                className="font-black uppercase text-[10px] tracking-widest shadow-sm bg-amber-600 hover:bg-amber-700"
-                                onClick={handleMaintenanceSweep}
-                                disabled={isCleaning}
-                            >
-                                {isCleaning ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Trash2 className="h-3 w-3 mr-1.5" />}
-                                Sweep
-                            </Button>
-                        </div>
-                    )}
+                        )}
+                        <Button 
+                            size="sm" 
+                            className={cn(
+                                "font-black uppercase text-[10px] tracking-widest shadow-sm h-8",
+                                staleCount > 0 ? "bg-amber-600 hover:bg-amber-700 text-white" : "bg-slate-900 hover:bg-slate-800 text-white"
+                            )}
+                            onClick={handleMaintenanceSweep}
+                            disabled={isCleaning}
+                        >
+                            {isCleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+                            {isCleaning ? "Sweeping..." : (staleCount > 0 ? `Sweep (${staleCount})` : "Sweep Platform")}
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
         </div>
