@@ -292,11 +292,20 @@
       display: none !important;
     }
 
-    /* 2. When printing a modal report, hide the main page background tables */
+    /* 2. When printing a modal report, completely hide the outer app wrapper (min-h-screen) to eliminate blank 1st page */
+    body.printing-report > *:not([data-radix-portal]),
+    body.printing-report > div:first-child,
+    body:has([role="dialog"]) > *:not([data-radix-portal]),
+    body:has([role="dialog"]) > div:first-child,
     body.printing-report main,
-    body:has([role="dialog"]) > main,
-    body:has([role="dialog"]) > div:first-child > main {
+    body:has([role="dialog"]) main {
       display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      max-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
     }
 
     /* 3. Hide dark modal overlay backdrop */
@@ -314,40 +323,40 @@
       margin: 0 !important;
       padding: 0 !important;
       height: auto !important;
-      min-height: auto !important;
+      min-height: 0 !important;
       overflow: visible !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      position: relative !important;
     }
 
-    main {
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-
-    /* 5. Ensure Radix Portal container and wrappers are visible in flow */
+    /* 5. Ensure Radix Portal container and wrappers start at top (0,0) without blank gaps */
     [data-radix-portal],
     [data-radix-portal] > div {
       position: static !important;
       display: block !important;
       width: 100% !important;
       height: auto !important;
+      min-height: 0 !important;
       overflow: visible !important;
       background: transparent !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
-    /* 6. Transform Dialog into a clean, unconstrained document flow */
+    /* 6. Transform Dialog into a clean, unconstrained document starting at page 1 */
     [role="dialog"] {
       position: static !important;
       transform: none !important;
       inset: auto !important;
-      top: auto !important;
-      left: auto !important;
+      top: 0 !important;
+      left: 0 !important;
       right: auto !important;
       bottom: auto !important;
       width: 100% !important;
       max-width: 100% !important;
       height: auto !important;
+      min-height: 0 !important;
       max-height: none !important;
       border: none !important;
       box-shadow: none !important;
@@ -364,9 +373,12 @@
     [data-radix-scroll-area-viewport] > div {
       display: block !important;
       height: auto !important;
+      min-height: 0 !important;
       max-height: none !important;
       overflow: visible !important;
       width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
     /* 8. Clean section flow without awkward breaks */
@@ -379,7 +391,7 @@
 
     @page {
       size: auto;
-      margin: 12mm 15mm 12mm 15mm;
+      margin: 10mm 15mm 10mm 15mm;
     }
   }
 }

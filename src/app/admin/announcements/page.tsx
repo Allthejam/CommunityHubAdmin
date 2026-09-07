@@ -827,7 +827,7 @@ export default function AdminAnnouncementsPage() {
     </div>
     
     <Dialog open={!!viewingAnnouncement} onOpenChange={(isOpen) => !isOpen && setViewingAnnouncement(null)}>
-        <DialogContent className="sm:max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden border-2 shadow-2xl">
+        <DialogContent className="sm:max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden border-2 shadow-2xl print:h-auto print:max-h-none print:w-full print:max-w-none print:p-0 print:border-none print:shadow-none print:overflow-visible">
             <DialogHeader className="p-6 pb-4 border-b shrink-0 text-center sm:text-left flex flex-row items-center justify-between bg-primary/5">
                 <div className="space-y-1 text-left">
                     <DialogTitle className="font-black text-2xl tracking-tighter flex items-center gap-2">
