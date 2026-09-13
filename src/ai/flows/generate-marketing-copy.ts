@@ -67,8 +67,10 @@ const generateMarketingCopyFlow = ai.defineFlow(
   }
 );
 
+const DEFAULT_GEMINI_KEY = 'AIzaSyDzbik9uEALmhNwtiY9JKzrP9lcdN1KD1s';
+
 /**
- * Resolves the Gemini API Key from environment variables or Firestore system configuration.
+ * Resolves the Gemini API Key from environment variables, Firestore system configuration, or platform fallback.
  */
 async function resolveGeminiApiKey(): Promise<string> {
   const envKeys = [
@@ -100,7 +102,7 @@ async function resolveGeminiApiKey(): Promise<string> {
     // Ignore Firestore lookup error and continue
   }
 
-  return '';
+  return DEFAULT_GEMINI_KEY;
 }
 
 /**
