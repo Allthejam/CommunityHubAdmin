@@ -67,7 +67,6 @@ export async function toggleCampaignMainAppVisibilityAction(campaignId: string, 
         const { firestore } = initializeAdminApp();
         await firestore.collection('marketing_campaigns').doc(campaignId).update({
             isMainAppVisible,
-            updatedAt: Timestamp.now(),
         });
         return { success: true, campaignId };
     } catch (error: any) {

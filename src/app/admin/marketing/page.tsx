@@ -192,7 +192,7 @@ export default function MarketingPage() {
     const campaignsQuery = useMemoFirebase(() => db ? collection(db, 'marketing_campaigns') : null, [db]);
     const { data: savedCampaigns, isLoading: campaignsLoading } = useCollection<MarketingCampaign>(campaignsQuery);
     
-    const [sorting, setSorting] = React.useState<{ key: keyof MarketingCampaign; order: 'asc' | 'desc' }>({ key: 'updatedAt', order: 'desc' });
+    const [sorting, setSorting] = React.useState<{ key: keyof MarketingCampaign; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
     const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
 
     React.useEffect(() => {
@@ -237,9 +237,8 @@ export default function MarketingPage() {
         setIsSaving(false);
     };
 
-    const handleToggleMainAppVisibility = async (campaign: MarketingCampaign, e?: React.MouseEvent) => {
-        if (e) e.stopPropagation();
-        const newStatus = !(campaign.isMainAppVisible ?? false);
+    const handleToggleMainAppVisibility = async (campaign: MarketingCampaign, checked?: boolean) => {
+        const newStatus = typeof checked === 'boolean' ? checked : !(campaign.isMainAppVisible ?? false);
         setTogglingId(campaign.id);
         try {
             const res = await toggleCampaignMainAppVisibilityAction(campaign.id, newStatus);
@@ -566,8 +565,10 @@ export default function MarketingPage() {
                                                                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
                                                             ) : (
                                                                 <Switch
+                                                                    id={`switch-${campaign.id}`}
                                                                     checked={isLive}
-                                                                    onCheckedChange={() => handleToggleMainAppVisibility(campaign)}
+                                                                    disabled={isToggling}
+                                                                    onCheckedChange={(checked) => handleToggleMainAppVisibility(campaign, checked)}
                                                                     title={isLive ? "Allowed on Main App. Click to make platform-only." : "Platform only. Click to allow on Main App."}
                                                                 />
                                                             )}
