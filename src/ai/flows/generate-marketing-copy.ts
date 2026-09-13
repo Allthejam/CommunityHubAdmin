@@ -28,7 +28,7 @@ export type GenerateMarketingCopyOutput = z.infer<typeof GenerateMarketingCopyOu
 
 const marketingPrompt = ai.definePrompt({
   name: 'generateMarketingCopyPrompt',
-  model: 'googleai/gemini-3.6-flash',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: GenerateMarketingCopyInputSchema },
   output: { schema: GenerateMarketingCopyOutputSchema },
   prompt: `You are a high-level creative brand and marketing strategist for "Community Hub" (also referred to as Local Pulse), a comprehensive next-generation civic, emergency, and local commerce ecosystem.
@@ -85,19 +85,39 @@ async function resolveGeminiApiKey(): Promise<string> {
     }
   }
 
-  // Fallback: Check Firestore platform_settings for runtime configuration
+  // Fallback 1: Check Firestore platform_settings via Admin SDK
   try {
     const { firestore } = initializeAdminApp();
     const settingsDoc = await firestore.collection('platform_settings').doc('system').get();
     if (settingsDoc.exists) {
       const data = settingsDoc.data();
-      const dbKey = data?.geminiApiKey || data?.googleGenAiApiKey || data?.apiKey;
+      const dbKey = data?.geminiApiKey || data?.googleGenAiApiKey || data?.GEMINI_API_KEY || data?.apiKey;
       if (dbKey && typeof dbKey === 'string' && dbKey.trim().length > 10) {
         return dbKey.trim();
       }
     }
   } catch (e) {
-    // Ignore Firestore lookup error and continue
+    // Continue to REST fallback
+  }
+
+  // Fallback 2: Direct Firestore REST API (Works unconditionally in serverless / App Hosting)
+  try {
+    const webKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyCf2j994HoQsQ8SnhnhAR5Vzs-ymJJxJe8';
+    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'studio-293583498-5253a';
+    const restUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/platform_settings/system?key=${webKey}`;
+    const res = await fetch(restUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const dbKey = data?.fields?.geminiApiKey?.stringValue || 
+                    data?.fields?.googleGenAiApiKey?.stringValue || 
+                    data?.fields?.GEMINI_API_KEY?.stringValue || 
+                    data?.fields?.apiKey?.stringValue;
+      if (dbKey && typeof dbKey === 'string' && dbKey.trim().length > 10) {
+        return dbKey.trim();
+      }
+    }
+  } catch (restErr) {
+    // Ignore error
   }
 
   return '';
@@ -134,7 +154,7 @@ Respond ONLY with valid JSON in this exact structure without markdown formatting
   "socialMediaPost": "Short punchy social media snippet with 2-4 strategic hashtags"
 }`;
 
-  const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
   let lastError = '';
 
   for (const model of candidateModels) {
