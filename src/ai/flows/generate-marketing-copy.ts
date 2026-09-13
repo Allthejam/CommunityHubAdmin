@@ -28,7 +28,7 @@ export type GenerateMarketingCopyOutput = z.infer<typeof GenerateMarketingCopyOu
 
 const marketingPrompt = ai.definePrompt({
   name: 'generateMarketingCopyPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.6-flash',
   input: { schema: GenerateMarketingCopyInputSchema },
   output: { schema: GenerateMarketingCopyOutputSchema },
   prompt: `You are a high-level creative brand and marketing strategist for "Community Hub" (also referred to as Local Pulse), a comprehensive next-generation civic, emergency, and local commerce ecosystem.
