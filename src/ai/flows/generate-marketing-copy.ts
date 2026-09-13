@@ -28,7 +28,7 @@ export type GenerateMarketingCopyOutput = z.infer<typeof GenerateMarketingCopyOu
 
 const marketingPrompt = ai.definePrompt({
   name: 'generateMarketingCopyPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.6-flash',
   input: { schema: GenerateMarketingCopyInputSchema },
   output: { schema: GenerateMarketingCopyOutputSchema },
   prompt: `You are a high-level creative brand and marketing strategist for "Community Hub" (also referred to as Local Pulse), a comprehensive next-generation civic, emergency, and local commerce ecosystem.
@@ -134,35 +134,47 @@ Respond ONLY with valid JSON in this exact structure without markdown formatting
   "socialMediaPost": "Short punchy social media snippet with 2-4 strategic hashtags"
 }`;
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json"
-      }
-    })
-  });
+  const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+  let lastError = '';
 
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Google API returned status ${response.status}`);
+  for (const model of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        lastError = errData?.error?.message || `Google API returned status ${response.status}`;
+        continue;
+      }
+
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+
+      const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        headline: parsed.headline || `Empowering Communities: ${input.feature}`,
+        body: parsed.body || `<p>Discover the power of <strong>${input.feature}</strong> for <strong>${input.audience}</strong> on Community Hub.</p>`,
+        socialMediaPost: parsed.socialMediaPost || `#CommunityHub #${input.feature.replace(/\s+/g, '')}`
+      };
+    } catch (e: any) {
+      lastError = e?.message || String(e);
+    }
   }
 
-  const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error("Received empty response from Gemini API.");
-
-  const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-  const parsed = JSON.parse(cleaned);
-
-  return {
-    headline: parsed.headline || `Empowering Communities: ${input.feature}`,
-    body: parsed.body || `<p>Discover the power of <strong>${input.feature}</strong> for <strong>${input.audience}</strong> on Community Hub.</p>`,
-    socialMediaPost: parsed.socialMediaPost || `#CommunityHub #${input.feature.replace(/\s+/g, '')}`
-  };
+  throw new Error(lastError || "Could not generate marketing copy with available Gemini models.");
 }
 
 /**
