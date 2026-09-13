@@ -18,15 +18,21 @@ import {
     ArrowDown,
     X, 
     Info, 
-    AlertTriangle 
+    AlertTriangle,
+    Globe
 } from "lucide-react";
 import { generateMarketingCopy } from '@/ai/flows/generate-marketing-copy';
 import { useToast } from '@/hooks/use-toast';
-import { saveMarketingCampaignAction, deleteMarketingCampaignAction } from '@/lib/actions/marketingActions';
+import { 
+    saveMarketingCampaignAction, 
+    deleteMarketingCampaignAction, 
+    toggleCampaignMainAppVisibilityAction 
+} from '@/lib/actions/marketingActions';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { formatDistanceToNow } from 'date-fns';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { Switch } from '@/components/ui/switch';
 import { 
     Dialog, 
     DialogContent, 
@@ -93,6 +99,7 @@ type MarketingCampaign = {
   body: string;
   socialMediaPost: string;
   coverImageUrl?: string;
+  isMainAppVisible?: boolean;
   createdAt: { toDate: () => Date };
   updatedAt: { toDate: () => Date };
 };
@@ -173,6 +180,8 @@ export default function MarketingPage() {
     const [body, setBody] = React.useState('');
     const [socialMediaPost, setSocialMediaPost] = React.useState('');
     const [coverImageUrl, setCoverImageUrl] = React.useState<string | null>(null);
+    const [isMainAppVisible, setIsMainAppVisible] = React.useState<boolean>(false);
+    const [togglingId, setTogglingId] = React.useState<string | null>(null);
     const [isSaving, setIsSaving] = React.useState(false);
     const [viewingCampaign, setViewingCampaign] = React.useState<MarketingCampaign | null>(null);
     
@@ -192,6 +201,7 @@ export default function MarketingPage() {
             setHeadline(aiState.headline || '');
             setBody(aiState.body || '');
             setSocialMediaPost(aiState.socialMediaPost || '');
+            setIsMainAppVisible(false);
             setCampaignId(null);
         }
         if (aiState.error) {
@@ -210,15 +220,44 @@ export default function MarketingPage() {
             body,
             socialMediaPost,
             coverImageUrl: coverImageUrl || '',
+            isMainAppVisible,
         });
 
         if (result.success && result.campaignId) {
             setCampaignId(result.campaignId);
-            toast({ title: "Campaign Saved!", description: "Your marketing campaign has been saved to the database." });
+            toast({ 
+                title: "Campaign Saved!", 
+                description: isMainAppVisible 
+                    ? "Saved and published to Main APP Leader Marketing Hub." 
+                    : "Saved as Platform Only / Internal copy." 
+            });
         } else {
             toast({ title: "Save Failed", description: result.error, variant: "destructive" });
         }
         setIsSaving(false);
+    };
+
+    const handleToggleMainAppVisibility = async (campaign: MarketingCampaign, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const newStatus = !(campaign.isMainAppVisible ?? false);
+        setTogglingId(campaign.id);
+        try {
+            const res = await toggleCampaignMainAppVisibilityAction(campaign.id, newStatus);
+            if (res.success) {
+                toast({
+                    title: newStatus ? "Published to Main APP" : "Restricted to Platform Only",
+                    description: newStatus 
+                        ? `"${campaign.headline}" is now live in the Main APP Leader Marketing Hub.`
+                        : `"${campaign.headline}" is now hidden from the Main APP.`
+                });
+            } else {
+                toast({ title: "Error", description: res.error, variant: "destructive" });
+            }
+        } catch (err: any) {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        } finally {
+            setTogglingId(null);
+        }
     };
 
     const handleEditCampaign = (campaign: MarketingCampaign) => {
@@ -229,6 +268,7 @@ export default function MarketingPage() {
         setCoverImageUrl(campaign.coverImageUrl || null);
         setAudience(campaign.audience);
         setFeature(campaign.feature);
+        setIsMainAppVisible(campaign.isMainAppVisible ?? false);
         setViewingCampaign(null);
         
         toast({ title: 'Editing Campaign', description: `Loaded "${campaign.headline}" into the editor.` });
@@ -252,6 +292,7 @@ export default function MarketingPage() {
         setBody('');
         setSocialMediaPost('');
         setCoverImageUrl(null);
+        setIsMainAppVisible(false);
         setAudience('Personal User / Local Resident');
         setFeature('General Platform & Community Ecosystem');
         formRef.current?.reset();
@@ -420,14 +461,48 @@ export default function MarketingPage() {
                         </div>
                         <div className="space-y-2">
                              <div className="flex justify-between items-center">
-                                <Label htmlFor="edit-social" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Social Snippet</Label>
-                                <CopyToClipboardButton textToCopy={socialMediaPost} />
+                                 <Label htmlFor="edit-social" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Social Snippet</Label>
+                                 <CopyToClipboardButton textToCopy={socialMediaPost} />
+                             </div>
+                            <Input id="edit-social" value={socialMediaPost} onChange={(e) => setSocialMediaPost(e.target.value)} />
+                        </div>
+
+                        {/* Main App Visibility Switch */}
+                        <div className="p-4 rounded-xl border bg-card/80 backdrop-blur-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="edit-main-app" className="font-bold text-sm flex items-center gap-1.5 cursor-pointer">
+                                        <Globe className="h-4 w-4 text-primary" />
+                                        Publish to Main Community Hub APP
+                                    </Label>
+                                    {isMainAppVisible ? (
+                                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
+                                            🟢 Live on Main APP
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px] font-bold">
+                                            🔒 Platform Only / Internal
+                                        </Badge>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    When enabled, this copy will be visible in the Leader Marketing Hub on the Main APP. Leave disabled for platform-only / internal use.
+                                </p>
                             </div>
-                           <Input id="edit-social" value={socialMediaPost} onChange={(e) => setSocialMediaPost(e.target.value)} />
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                    {isMainAppVisible ? "Allowed on Main App" : "Platform Only"}
+                                </span>
+                                <Switch
+                                    id="edit-main-app"
+                                    checked={isMainAppVisible}
+                                    onCheckedChange={setIsMainAppVisible}
+                                />
+                            </div>
                         </div>
                     </CardContent>
                     <CardFooterComponent className="bg-primary/5 border-t border-primary/10">
-                        <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto">
+                        <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto font-bold">
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                             {campaignId ? 'Update Campaign' : 'Save to Library'}
                         </Button>
@@ -461,6 +536,7 @@ export default function MarketingPage() {
                                                 Feature <SortIcon columnKey="feature" />
                                             </Button>
                                         </TableHead>
+                                        <TableHead className="w-40 text-center">Main APP Visibility</TableHead>
                                         <TableHead>
                                             <Button variant="ghost" onClick={() => handleSort('updatedAt')} className={cn("p-0 hover:bg-transparent font-bold", sorting.key === 'updatedAt' && "text-primary")}>
                                                 Last Modified <SortIcon columnKey="updatedAt" />
@@ -471,27 +547,54 @@ export default function MarketingPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {campaignsLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" /></TableCell></TableRow>
                                     ) : sortedCampaigns && sortedCampaigns.length > 0 ? (
-                                        paginatedCampaigns.map((campaign: MarketingCampaign) => (
-                                            <TableRow key={campaign.id} className="group">
-                                                <TableCell className="font-medium max-w-xs truncate">{campaign.headline}</TableCell>
-                                                <TableCell><Badge variant="secondary">{campaign.audience}</Badge></TableCell>
-                                                <TableCell><Badge variant="outline">{campaign.feature}</Badge></TableCell>
-                                                <TableCell className="text-xs text-muted-foreground">{campaign.updatedAt ? formatDistanceToNow(campaign.updatedAt.toDate(), { addSuffix: true }) : 'N/A'}</TableCell>
-                                                <TableCell className="text-right">
-                                                     <div className="flex justify-end gap-1">
-                                                        <DialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon" onClick={() => setViewingCampaign(campaign)} title="Quick View"><Eye className="h-4 w-4"/></Button>
-                                                        </DialogTrigger>
-                                                        <Button variant="ghost" size="icon" onClick={() => handleEditCampaign(campaign)} title="Load in Editor"><Edit className="h-4 w-4"/></Button>
-                                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteCampaign(campaign)} title="Delete"><Trash2 className="h-4 w-4"/></Button>
-                                                     </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
+                                        paginatedCampaigns.map((campaign: MarketingCampaign) => {
+                                            const isLive = campaign.isMainAppVisible ?? false;
+                                            const isToggling = togglingId === campaign.id;
+
+                                            return (
+                                                <TableRow key={campaign.id} className="group">
+                                                    <TableCell className="font-medium max-w-xs truncate">{campaign.headline}</TableCell>
+                                                    <TableCell><Badge variant="secondary">{campaign.audience}</Badge></TableCell>
+                                                    <TableCell><Badge variant="outline">{campaign.feature}</Badge></TableCell>
+                                                    
+                                                    {/* Main App Visibility Switch Column */}
+                                                    <TableCell className="text-center">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            {isToggling ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                                            ) : (
+                                                                <Switch
+                                                                    checked={isLive}
+                                                                    onCheckedChange={() => handleToggleMainAppVisibility(campaign)}
+                                                                    title={isLive ? "Allowed on Main App. Click to make platform-only." : "Platform only. Click to allow on Main App."}
+                                                                />
+                                                            )}
+                                                            <span className={cn(
+                                                                "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                                                                isLive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+                                                            )}>
+                                                                {isLive ? "Live" : "Internal"}
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
+
+                                                    <TableCell className="text-xs text-muted-foreground">{campaign.updatedAt ? formatDistanceToNow(campaign.updatedAt.toDate(), { addSuffix: true }) : 'N/A'}</TableCell>
+                                                    <TableCell className="text-right">
+                                                         <div className="flex justify-end gap-1">
+                                                            <DialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" onClick={() => setViewingCampaign(campaign)} title="Quick View"><Eye className="h-4 w-4"/></Button>
+                                                            </DialogTrigger>
+                                                            <Button variant="ghost" size="icon" onClick={() => handleEditCampaign(campaign)} title="Load in Editor"><Edit className="h-4 w-4"/></Button>
+                                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteCampaign(campaign)} title="Delete"><Trash2 className="h-4 w-4"/></Button>
+                                                         </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
                                     ) : (
-                                        <TableRow><TableCell colSpan={5} className="text-center h-32 text-muted-foreground italic">No campaigns found in the library.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground italic">No campaigns found in the library.</TableCell></TableRow>
                                     )}
                                 </TableBody>
                             </Table>
@@ -506,9 +609,18 @@ export default function MarketingPage() {
                 </Card>
                  <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
                     <DialogHeader>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <Badge variant="secondary">{viewingCampaign?.audience}</Badge>
                             <Badge variant="outline">{viewingCampaign?.feature}</Badge>
+                            {viewingCampaign?.isMainAppVisible ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[10px] font-bold">
+                                    🟢 Live on Main APP
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="text-muted-foreground text-[10px] font-bold">
+                                    🔒 Platform Only / Internal
+                                </Badge>
+                            )}
                         </div>
                         <DialogTitle className="text-2xl font-bold font-headline">{viewingCampaign?.headline}</DialogTitle>
                     </DialogHeader>
@@ -540,7 +652,7 @@ export default function MarketingPage() {
                         </div>
                     </ScrollArea>
                     <DialogFooter className="border-t pt-4">
-                        <Button variant="outline" onClick={() => viewingCampaign && handleEditCampaign(viewingCampaign)} className="w-full sm:w-auto">
+                        <Button variant="outline" onClick={() => viewingCampaign && handleEditCampaign(viewingCampaign)} className="w-full sm:w-auto font-bold">
                             <Edit className="h-4 w-4 mr-2" />
                             Load into Editor
                         </Button>

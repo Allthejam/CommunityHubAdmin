@@ -18,6 +18,7 @@ type CampaignData = {
     body: string;
     socialMediaPost: string;
     coverImageUrl?: string;
+    isMainAppVisible?: boolean;
 }
 
 export async function saveMarketingCampaignAction(data: CampaignData): Promise<ActionResponse> {
@@ -30,18 +31,23 @@ export async function saveMarketingCampaignAction(data: CampaignData): Promise<A
         const campaignsCollection = firestore.collection('marketing_campaigns');
         const { id, ...dataToSave } = data;
 
+        const payload = {
+            ...dataToSave,
+            isMainAppVisible: data.isMainAppVisible ?? false,
+        };
+
         if (id) {
             // Update existing campaign
             const campaignRef = campaignsCollection.doc(id);
             await campaignRef.update({
-                ...dataToSave,
+                ...payload,
                 updatedAt: Timestamp.now(),
             });
             return { success: true, campaignId: id };
         } else {
             // Create new campaign
             const newCampaignRef = await campaignsCollection.add({
-                ...dataToSave,
+                ...payload,
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),
             });
@@ -50,6 +56,23 @@ export async function saveMarketingCampaignAction(data: CampaignData): Promise<A
     } catch (error: any) {
         console.error("Error saving marketing campaign:", error);
         return { success: false, error: error.message || 'Failed to save campaign.' };
+    }
+}
+
+export async function toggleCampaignMainAppVisibilityAction(campaignId: string, isMainAppVisible: boolean): Promise<ActionResponse> {
+    if (!campaignId) {
+        return { success: false, error: "Campaign ID is required." };
+    }
+    try {
+        const { firestore } = initializeAdminApp();
+        await firestore.collection('marketing_campaigns').doc(campaignId).update({
+            isMainAppVisible,
+            updatedAt: Timestamp.now(),
+        });
+        return { success: true, campaignId };
+    } catch (error: any) {
+        console.error("Error updating campaign visibility:", error);
+        return { success: false, error: error.message || 'Failed to update visibility.' };
     }
 }
 
