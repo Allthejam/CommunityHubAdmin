@@ -154,7 +154,7 @@ Respond ONLY with valid JSON in this exact structure without markdown formatting
   "socialMediaPost": "Short punchy social media snippet with 2-4 strategic hashtags"
 }`;
 
-  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+  const candidateModels = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-pro-latest', 'gemini-3.5-flash'];
   let lastError = '';
 
   for (const model of candidateModels) {
