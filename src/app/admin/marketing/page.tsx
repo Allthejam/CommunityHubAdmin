@@ -29,7 +29,7 @@ import {
     toggleCampaignMainAppVisibilityAction 
 } from '@/lib/actions/marketingActions';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { formatDistanceToNow } from 'date-fns';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { Switch } from '@/components/ui/switch';
@@ -210,39 +210,86 @@ export default function MarketingPage() {
     }, [aiState, toast]);
     
     const handleSave = async () => {
-        setIsSaving(true);
-
-        const result = await saveMarketingCampaignAction({
-            id: campaignId || undefined,
-            audience,
-            feature,
-            headline,
-            body,
-            socialMediaPost,
-            coverImageUrl: coverImageUrl || '',
-            isMainAppVisible,
-        });
-
-        if (result.success && result.campaignId) {
-            setCampaignId(result.campaignId);
-            toast({ 
-                title: "Campaign Saved!", 
-                description: isMainAppVisible 
-                    ? "Saved and published to Main APP Leader Marketing Hub." 
-                    : "Saved as Platform Only / Internal copy." 
-            });
-        } else {
-            toast({ title: "Save Failed", description: result.error, variant: "destructive" });
+        if (!audience || !feature || !headline.trim() || !body.trim() || !socialMediaPost.trim()) {
+            toast({ title: "Validation Error", description: "All content fields are required.", variant: "destructive" });
+            return;
         }
-        setIsSaving(false);
+
+        setIsSaving(true);
+        try {
+            if (db) {
+                const payload = {
+                    audience,
+                    feature,
+                    headline,
+                    body,
+                    socialMediaPost,
+                    coverImageUrl: coverImageUrl || '',
+                    isMainAppVisible: isMainAppVisible ?? false,
+                    updatedAt: serverTimestamp(),
+                };
+
+                if (campaignId) {
+                    await updateDoc(doc(db, 'marketing_campaigns', campaignId), payload);
+                    toast({ 
+                        title: "Campaign Saved!", 
+                        description: isMainAppVisible 
+                            ? "Saved and published to Main APP Leader Marketing Hub." 
+                            : "Saved as Platform Only / Internal copy." 
+                    });
+                } else {
+                    const newDocRef = await addDoc(collection(db, 'marketing_campaigns'), {
+                        ...payload,
+                        createdAt: serverTimestamp(),
+                    });
+                    setCampaignId(newDocRef.id);
+                    toast({ 
+                        title: "Campaign Saved!", 
+                        description: isMainAppVisible 
+                            ? "Saved and published to Main APP Leader Marketing Hub." 
+                            : "Saved as Platform Only / Internal copy." 
+                    });
+                }
+            } else {
+                const result = await saveMarketingCampaignAction({
+                    id: campaignId || undefined,
+                    audience,
+                    feature,
+                    headline,
+                    body,
+                    socialMediaPost,
+                    coverImageUrl: coverImageUrl || '',
+                    isMainAppVisible,
+                });
+
+                if (result.success && result.campaignId) {
+                    setCampaignId(result.campaignId);
+                    toast({ 
+                        title: "Campaign Saved!", 
+                        description: isMainAppVisible 
+                            ? "Saved and published to Main APP Leader Marketing Hub." 
+                            : "Saved as Platform Only / Internal copy." 
+                    });
+                } else {
+                    toast({ title: "Save Failed", description: result.error, variant: "destructive" });
+                }
+            }
+        } catch (err: any) {
+            console.error("Save marketing campaign error:", err);
+            toast({ title: "Save Failed", description: err.message || "Failed to save campaign.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleToggleMainAppVisibility = async (campaign: MarketingCampaign, checked?: boolean) => {
         const newStatus = typeof checked === 'boolean' ? checked : !(campaign.isMainAppVisible ?? false);
         setTogglingId(campaign.id);
         try {
-            const res = await toggleCampaignMainAppVisibilityAction(campaign.id, newStatus);
-            if (res.success) {
+            if (db) {
+                await updateDoc(doc(db, 'marketing_campaigns', campaign.id), {
+                    isMainAppVisible: newStatus,
+                });
                 toast({
                     title: newStatus ? "Published to Main APP" : "Restricted to Platform Only",
                     description: newStatus 
@@ -250,7 +297,17 @@ export default function MarketingPage() {
                         : `"${campaign.headline}" is now hidden from the Main APP.`
                 });
             } else {
-                toast({ title: "Error", description: res.error, variant: "destructive" });
+                const res = await toggleCampaignMainAppVisibilityAction(campaign.id, newStatus);
+                if (res.success) {
+                    toast({
+                        title: newStatus ? "Published to Main APP" : "Restricted to Platform Only",
+                        description: newStatus 
+                            ? `"${campaign.headline}" is now live in the Main APP Leader Marketing Hub.`
+                            : `"${campaign.headline}" is now hidden from the Main APP.`
+                    });
+                } else {
+                    toast({ title: "Error", description: res.error, variant: "destructive" });
+                }
             }
         } catch (err: any) {
             toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -277,11 +334,20 @@ export default function MarketingPage() {
     const handleDeleteCampaign = async (campaign: MarketingCampaign) => {
         if (!window.confirm(`Are you sure you want to delete the "${campaign.headline}" campaign?`)) return;
         
-        const result = await deleteMarketingCampaignAction(campaign.id);
-        if (result.success) {
-            toast({ title: 'Campaign Deleted' });
-        } else {
-            toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        try {
+            if (db) {
+                await deleteDoc(doc(db, 'marketing_campaigns', campaign.id));
+                toast({ title: 'Campaign Deleted' });
+            } else {
+                const result = await deleteMarketingCampaignAction(campaign.id);
+                if (result.success) {
+                    toast({ title: 'Campaign Deleted' });
+                } else {
+                    toast({ title: 'Error', description: result.error, variant: 'destructive' });
+                }
+            }
+        } catch (err: any) {
+            toast({ title: 'Error', description: err.message, variant: 'destructive' });
         }
     };
     
