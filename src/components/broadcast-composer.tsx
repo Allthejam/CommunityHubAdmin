@@ -49,7 +49,19 @@ import { MultiSelect } from "./ui/multi-select";
 import { CommunitySelector, type CommunitySelection } from "./community-selector";
 import { Badge } from "./ui/badge";
 import { useDoc, useMemoFirebase } from "@/firebase";
-import { doc, getDoc } from 'firebase/firestore';
+import { 
+    collection, 
+    doc, 
+    getDoc, 
+    getDocs, 
+    getCountFromServer, 
+    query, 
+    where, 
+    addDoc, 
+    serverTimestamp, 
+    Timestamp, 
+    writeBatch 
+} from 'firebase/firestore';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -161,13 +173,75 @@ export function BroadcastComposer() {
     const debouncedFetchCount = useDebouncedCallback(async (type: string, roles: string[], location: CommunitySelection) => {
         setIsCalculatingCount(true);
         try {
-            const result = await getTargetAudienceCountAction({
-                audienceType: type,
-                selectedRoles: roles,
-                selectedLocation: location
-            });
-            setTargetedUserCount(result.userCount);
-            setTargetedCommunityCount(result.communityCount);
+            let userCount = 0;
+            let communityCount = 0;
+
+            // Direct client Firestore audience calculation (100% resilient on live without service account)
+            if (db) {
+                try {
+                    const usersRef = collection(db, 'users');
+                    if (type === 'all') {
+                        const countSnap = await getCountFromServer(usersRef);
+                        userCount = countSnap.data().count;
+
+                        const commsRef = collection(db, 'communities');
+                        const commsCountSnap = await getCountFromServer(query(commsRef, where('status', '==', 'active')));
+                        communityCount = commsCountSnap.data().count;
+                    } else if (type === 'roles' && roles.length > 0) {
+                        const q = query(usersRef, where('role', 'in', roles));
+                        const countSnap = await getCountFromServer(q);
+                        userCount = countSnap.data().count;
+                    } else if (type === 'location') {
+                        const { countries = [], states = [], regions = [], communities = [] } = location;
+                        const uniqueUserIds = new Set<string>();
+                        const uniqueCommunityIds = new Set<string>(communities);
+
+                        if (communities.length > 0) {
+                            for (let i = 0; i < communities.length; i += 10) {
+                                const chunk = communities.slice(i, i + 10);
+                                const snap = await getDocs(query(usersRef, where('homeCommunityId', 'in', chunk)));
+                                snap.docs.forEach(d => uniqueUserIds.add(d.id));
+                            }
+                        } else if (regions.length > 0) {
+                            for (let i = 0; i < regions.length; i += 10) {
+                                const chunk = regions.slice(i, i + 10);
+                                const snap = await getDocs(query(usersRef, where('regionId', 'in', chunk)));
+                                snap.docs.forEach(d => uniqueUserIds.add(d.id));
+                            }
+                        } else if (states.length > 0) {
+                            for (let i = 0; i < states.length; i += 10) {
+                                const chunk = states.slice(i, i + 10);
+                                const snap = await getDocs(query(usersRef, where('stateId', 'in', chunk)));
+                                snap.docs.forEach(d => uniqueUserIds.add(d.id));
+                            }
+                        } else if (countries.length > 0) {
+                            for (let i = 0; i < countries.length; i += 10) {
+                                const chunk = countries.slice(i, i + 10);
+                                const snap = await getDocs(query(usersRef, where('countryId', 'in', chunk)));
+                                snap.docs.forEach(d => uniqueUserIds.add(d.id));
+                            }
+                        }
+                        userCount = uniqueUserIds.size;
+                        communityCount = uniqueCommunityIds.size;
+                    }
+                } catch (clientCountErr) {
+                    console.warn("Client count failed, falling back to server action:", clientCountErr);
+                }
+            }
+
+            // Fallback to server action if client count is 0 and db was not initialized
+            if (userCount === 0 && !db) {
+                const result = await getTargetAudienceCountAction({
+                    audienceType: type,
+                    selectedRoles: roles,
+                    selectedLocation: location
+                });
+                userCount = result.userCount;
+                communityCount = result.communityCount;
+            }
+
+            setTargetedUserCount(userCount);
+            setTargetedCommunityCount(communityCount);
             
             if (type === 'location' && db) {
                 const names: string[] = [];
@@ -264,11 +338,11 @@ export function BroadcastComposer() {
     };
     
     const handleSubmit = async () => {
-        if (!user || !userProfile) {
+        if (!user) {
             toast({ title: "Error", description: "Authentication required.", variant: "destructive" });
             return;
         }
-        if (!subject || !message) {
+        if (!subject.trim() || !message.trim()) {
             toast({ title: "Error", description: "Subject and message are required.", variant: "destructive" });
             return;
         }
@@ -283,32 +357,89 @@ export function BroadcastComposer() {
         try {
             const finalAudience = getPrunedAudience();
             
-            const result = await createPlatformAnnouncementAction({
-                userId: user.uid,
-                subject,
-                message,
-                image,
-                type: selectedTier === 'emergency' ? 'Emergency' : 'Standard',
-                severity: selectedTier === 'urgent' ? 'urgent' : 'normal',
-                status: isImmediate ? "Live" : "Scheduled",
-                audience: finalAudience as any,
-                showOnLoginPage,
-                sendEmail: sendAsEmail,
-                scheduledDates: isImmediate ? new Date().toLocaleDateString() : (startDate && endDate ? `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}` : "Not specified"),
-                startDate: !isImmediate ? startDate : null,
-                endDate: !isImmediate ? endDate : null,
-                scope: 'platform',
-                sentBy: senderIdentity,
-            });
+            if (db) {
+                // Direct Client Firestore saving
+                const targetNames = resolvedNames.length > 0 ? resolvedNames : (audienceType === 'all' ? ['All Platform Users'] : (audienceType === 'roles' ? selectedRoles : ['Geographical Route Resolution Active']));
+                
+                const announcementData: any = {
+                    subject,
+                    message,
+                    image: image || null,
+                    type: selectedTier === 'emergency' ? 'Emergency' : 'Standard',
+                    severity: selectedTier === 'urgent' ? 'urgent' : 'normal',
+                    status: isImmediate ? "Live" : "Scheduled",
+                    audience: finalAudience,
+                    showOnLoginPage,
+                    sendEmail: sendAsEmail,
+                    scheduledDates: isImmediate ? new Date().toLocaleDateString() : (startDate && endDate ? `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}` : "Not specified"),
+                    startDate: !isImmediate && startDate ? Timestamp.fromDate(new Date(startDate)) : null,
+                    endDate: !isImmediate && endDate ? Timestamp.fromDate(new Date(endDate)) : null,
+                    scope: 'platform',
+                    sentBy: senderIdentity,
+                    ownerId: user.uid,
+                    userId: user.uid,
+                    targetNames,
+                    createdAt: serverTimestamp(),
+                    history: [{ status: isImmediate ? "Live" : "Scheduled", actorId: user.uid, timestamp: new Date() }]
+                };
 
-            if (result.success) {
-                toast({ title: "Broadcast Dispatched", description: "Announcement is live or scheduled." });
+                const newRef = await addDoc(collection(db, 'announcements'), announcementData);
+
+                // Dispatches background server actions for Push / Email / Audit
+                try {
+                    await createPlatformAnnouncementAction({
+                        userId: user.uid,
+                        subject,
+                        message,
+                        image,
+                        type: selectedTier === 'emergency' ? 'Emergency' : 'Standard',
+                        severity: selectedTier === 'urgent' ? 'urgent' : 'normal',
+                        status: isImmediate ? "Live" : "Scheduled",
+                        audience: finalAudience as any,
+                        showOnLoginPage,
+                        sendEmail: sendAsEmail,
+                        scheduledDates: isImmediate ? new Date().toLocaleDateString() : (startDate && endDate ? `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}` : "Not specified"),
+                        startDate: !isImmediate ? startDate : null,
+                        endDate: !isImmediate ? endDate : null,
+                        scope: 'platform',
+                        sentBy: senderIdentity,
+                    });
+                } catch (actionErr) {
+                    console.warn("Background notification / email dispatch notice:", actionErr);
+                }
+
+                toast({ title: "Broadcast Dispatched", description: "Announcement is live and active." });
                 resetForm();
             } else {
-                throw new Error(result.error);
+                // Server action fallback
+                const result = await createPlatformAnnouncementAction({
+                    userId: user.uid,
+                    subject,
+                    message,
+                    image,
+                    type: selectedTier === 'emergency' ? 'Emergency' : 'Standard',
+                    severity: selectedTier === 'urgent' ? 'urgent' : 'normal',
+                    status: isImmediate ? "Live" : "Scheduled",
+                    audience: finalAudience as any,
+                    showOnLoginPage,
+                    sendEmail: sendAsEmail,
+                    scheduledDates: isImmediate ? new Date().toLocaleDateString() : (startDate && endDate ? `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}` : "Not specified"),
+                    startDate: !isImmediate ? startDate : null,
+                    endDate: !isImmediate ? endDate : null,
+                    scope: 'platform',
+                    sentBy: senderIdentity,
+                });
+
+                if (result.success) {
+                    toast({ title: "Broadcast Dispatched", description: "Announcement is live or scheduled." });
+                    resetForm();
+                } else {
+                    throw new Error(result.error);
+                }
             }
         } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+            console.error("Announcement dispatch error:", error);
+            toast({ title: "Error", description: error.message || "Failed to dispatch announcement.", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }

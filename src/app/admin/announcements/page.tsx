@@ -349,8 +349,7 @@ export default function AdminAnnouncementsPage() {
     setLoading(true);
 
     const q = query(
-        collection(db, "announcements"), 
-        where("ownerId", "==", user.uid)
+        collection(db, "announcements")
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
