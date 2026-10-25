@@ -172,7 +172,9 @@ export async function saveLeaderProfile(params: {
 
         [...roleSnap.docs, ...permSnap.docs, ...ownerSnap.docs].forEach(doc => {
           const d = doc.data();
-          if (doc.id !== userId) {
+          const isOwnerAccount = d.accountType === 'owner' || d.role === 'owner';
+          // Always notify platform owners; for other admins, do not notify if they are the applicant
+          if (doc.id !== userId || isOwnerAccount) {
             adminMap.set(doc.id, {
               id: doc.id,
               email: d.email,

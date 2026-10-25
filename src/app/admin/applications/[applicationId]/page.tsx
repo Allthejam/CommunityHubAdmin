@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { doc, getDoc, updateDoc, writeBatch, collection, getDocs, where, query, deleteField } from "firebase/firestore";
+import { doc, getDoc, updateDoc, writeBatch, collection, getDocs, where, query, deleteField, addDoc } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { logAuditTrailAction } from "@/lib/actions/auditActions";
 
@@ -186,17 +186,18 @@ export default function ApplicationViewPage() {
             await batch.commit();
 
             // 6. Record forensic audit log
-            await logAuditTrailAction({
-                adminId: user?.uid,
+            const auditEntry = {
+                adminId: user?.uid || 'system_admin',
                 adminName: userProfile.name || 'Platform Administrator',
                 adminEmail: user?.email || '',
                 action: 'leadership_application_revoked',
-                category: 'Applications & Vetting',
+                category: 'Applications & Vetting' as const,
                 details: `Revoked leadership for ${applicantData.displayName} in community "${applicantData.communityName}". Community returned to inactive status. Reason: ${revocationReason.trim() || 'Administrative revocation'}.`,
+                timestamp: now,
                 targetUser: {
                     id: applicantData.applicantId,
                     name: applicantData.displayName,
-                    email: applicantData.email
+                    email: applicantData.email || ''
                 },
                 targetObject: {
                     id: applicantData.communityId,
@@ -211,7 +212,12 @@ export default function ApplicationViewPage() {
                     previousStatus: 'Approved',
                     newCommunityStatus: 'inactive'
                 }
-            });
+            };
+            try {
+                await addDoc(collection(db, 'audit_log'), auditEntry);
+            } catch (cErr) {
+                await logAuditTrailAction(auditEntry as any);
+            }
 
             toast({
                 title: "Leadership Revoked",
@@ -333,17 +339,18 @@ export default function ApplicationViewPage() {
 
             await batch.commit();
 
-            await logAuditTrailAction({
-                adminId: user?.uid,
-                adminName: userProfile.name,
+            const appAuditEntry = {
+                adminId: user?.uid || 'system_admin',
+                adminName: userProfile.name || 'Platform Administrator',
                 adminEmail: user?.email || '',
                 action: status === 'Approved' ? 'leadership_application_approved' : 'leadership_application_declined',
-                category: 'Applications & Vetting',
+                category: 'Applications & Vetting' as const,
                 details: `${status === 'Approved' ? 'Approved' : 'Declined'} leadership application for ${applicantData.applicantName} for community "${applicantData.communityName}".`,
+                timestamp: now,
                 targetUser: {
                     id: applicantData.applicantId,
                     name: applicantData.applicantName,
-                    email: applicantData.contactEmail
+                    email: applicantData.contactEmail || ''
                 },
                 targetObject: {
                     id: applicantData.communityId,
@@ -355,7 +362,12 @@ export default function ApplicationViewPage() {
                     status,
                     processedBy: userProfile.name
                 }
-            });
+            };
+            try {
+                await addDoc(collection(db, 'audit_log'), appAuditEntry);
+            } catch (cErr) {
+                await logAuditTrailAction(appAuditEntry as any);
+            }
 
             toast({ title: "Status Updated", description: `Application has been marked as ${status}.` });
             

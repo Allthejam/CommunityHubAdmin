@@ -227,6 +227,32 @@ export async function createPlatformAnnouncementAction(
 
     const newRef = await firestore.collection('announcements').add(announcementData);
 
+    // AUDIT TRAIL LOGGING (Logged immediately upon database persistence)
+    try {
+        await logAuditTrailAction({
+            adminId: userId,
+            adminName: params.sentBy,
+            action: params.type === 'Emergency' ? 'emergency_broadcast_dispatched' : 'platform_announcement_created',
+            category: 'Broadcasts & Dispatches',
+            details: `Dispatched ${params.type} platform broadcast: "${params.subject}" (Status: ${params.status}, Audience: ${params.audience?.type || 'all'}, Email: ${params.sendEmail ? 'Yes' : 'No'})`,
+            targetObject: {
+                id: newRef.id,
+                name: params.subject,
+                type: 'Platform Announcement'
+            },
+            metadata: {
+                type: params.type,
+                severity: params.severity || 'normal',
+                status: params.status,
+                showOnLoginPage: params.showOnLoginPage,
+                sendEmail: params.sendEmail,
+                targetNames: targetNames
+            }
+        });
+    } catch (auditErr) {
+        console.warn("Could not log announcement audit trail:", auditErr);
+    }
+
     // AI MODERATION SCAN
     await scanAndFlagAction({
         text: `${params.subject} ${params.message}`,
@@ -530,6 +556,12 @@ export async function toggleAnnouncementLoginPageAction(
     await firestore.collection('announcements').doc(announcementId).update({
       showOnLoginPage,
     });
+    logAuditTrailAction({
+      action: showOnLoginPage ? 'announcement_login_page_enabled' : 'announcement_login_page_disabled',
+      category: 'Broadcasts & Dispatches',
+      details: `${showOnLoginPage ? 'Enabled' : 'Disabled'} login page visibility for announcement "${announcementId}".`,
+      targetObject: { id: announcementId, name: announcementId, type: 'Platform Announcement' }
+    }).catch(() => {});
     return { success: true };
   } catch (error: any) {
     console.error("Error updating login page visibility:", error);
