@@ -6,6 +6,24 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+function cleanupBodyLocks() {
+  if (typeof document === "undefined") return;
+  const hasOpenDialog = document.querySelector(
+    '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+  );
+  if (!hasOpenDialog) {
+    if (document.body.style.pointerEvents === "none") {
+      document.body.style.pointerEvents = "";
+    }
+    if (document.body.style.overflow === "hidden") {
+      document.body.style.overflow = "";
+    }
+    if (document.body.hasAttribute("data-scroll-locked")) {
+      document.body.removeAttribute("data-scroll-locked");
+    }
+  }
+}
+
 const Dialog = DialogPrimitive.Root
 
 const DialogTrigger = DialogPrimitive.Trigger
@@ -21,7 +39,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 print:hidden",
+      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:pointer-events-none print:hidden",
       className
     )}
     {...props}
@@ -35,13 +53,10 @@ const DialogContent = React.forwardRef<
 >(({ className, children, onCloseAutoFocus, ...props }, ref) => {
   React.useEffect(() => {
     return () => {
-      // Workaround for Radix UI bug where pointer-events: none gets stuck on document.body
-      setTimeout(() => {
-        const hasOpenDialog = document.querySelector('[role="dialog"], [data-state="open"]');
-        if (!hasOpenDialog && document.body.style.pointerEvents === 'none') {
-          document.body.style.pointerEvents = '';
-        }
-      }, 50);
+      cleanupBodyLocks();
+      setTimeout(cleanupBodyLocks, 50);
+      setTimeout(cleanupBodyLocks, 150);
+      setTimeout(cleanupBodyLocks, 260);
     };
   }, []);
 
@@ -51,11 +66,13 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         onCloseAutoFocus={(e) => {
-          document.body.style.pointerEvents = '';
+          cleanupBodyLocks();
+          setTimeout(cleanupBodyLocks, 50);
+          setTimeout(cleanupBodyLocks, 250);
           if (onCloseAutoFocus) onCloseAutoFocus(e);
         }}
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg print:static print:transform-none print:w-full print:max-w-none print:h-auto print:max-h-none print:border-none print:shadow-none print:p-0 print:m-0 print:bg-white print:overflow-visible print:block",
+          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=closed]:pointer-events-none sm:rounded-lg print:static print:transform-none print:w-full print:max-w-none print:h-auto print:max-h-none print:border-none print:shadow-none print:p-0 print:m-0 print:bg-white print:overflow-visible print:block",
           className
         )}
         {...props}

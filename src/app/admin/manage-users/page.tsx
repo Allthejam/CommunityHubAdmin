@@ -549,7 +549,7 @@ const UserRow = React.memo(({ user, unassignedCommunities, onAppoint, onUpdateSt
 UserRow.displayName = 'UserRow';
 
 
-const MemberDetailsDialog = ({ user, onUpdateStatus, onRemove, onEditRole, onPromote, onDemote, onViewOffenses, locationsMap, adminPermissions, onImpersonate }: {
+const MemberDetailsDialog = ({ user: rawUser, onUpdateStatus, onRemove, onEditRole, onPromote, onDemote, onViewOffenses, locationsMap, adminPermissions, onImpersonate }: {
     user: User | null;
     onUpdateStatus: (userId: string, status: MemberStatus) => void;
     onRemove: (user: User) => void;
@@ -561,6 +561,10 @@ const MemberDetailsDialog = ({ user, onUpdateStatus, onRemove, onEditRole, onPro
     adminPermissions: any;
     onImpersonate: (user: User) => void;
 }) => {
+    const lastUserRef = React.useRef<User | null>(rawUser);
+    if (rawUser) lastUserRef.current = rawUser;
+    const user = rawUser || lastUserRef.current;
+
     if (!user) return null;
 
     const isStaff = user.permissions?.isStaff || user.role === 'owner' || (user.title && user.title.includes('Platform'));
@@ -714,17 +718,20 @@ const MemberDetailsDialog = ({ user, onUpdateStatus, onRemove, onEditRole, onPro
     );
 };
 
-const OffenseHistoryDialog = ({ user, onClose }: { user: User | null; onClose: () => void }) => {
+const OffenseHistoryDialog = ({ user: rawUser, onClose }: { user: User | null; onClose: () => void }) => {
     const db = useFirestore();
     const [offenses, setOffenses] = React.useState<UserOffense[]>([]);
     const [loading, setLoading] = React.useState(false);
+    const lastUserRef = React.useRef<User | null>(rawUser);
+    if (rawUser) lastUserRef.current = rawUser;
+    const user = rawUser || lastUserRef.current;
 
     React.useEffect(() => {
-        if (!user || !db) return;
+        if (!rawUser || !db) return;
         setLoading(true);
         const q = query(
             collection(db, "user_offenses"),
-            where("userId", "==", user.id)
+            where("userId", "==", rawUser.id)
         );
         const unsub = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as UserOffense));
@@ -737,7 +744,7 @@ const OffenseHistoryDialog = ({ user, onClose }: { user: User | null; onClose: (
             setLoading(false);
         });
         return () => unsub();
-    }, [user, db]);
+    }, [rawUser, db]);
 
     if (!user) return null;
 
@@ -824,13 +831,25 @@ export default function ManageUsersPage() {
   // Prevent Radix UI bug from freezing page interaction after closing dialogs
   React.useEffect(() => {
     const handlePointerFix = () => {
-      const hasOpenDialog = document.querySelector('[role="dialog"], [data-state="open"]');
-      if (!hasOpenDialog && document.body.style.pointerEvents === 'none') {
-        document.body.style.pointerEvents = '';
+      const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (!hasOpenDialog) {
+        if (document.body.style.pointerEvents === 'none') {
+          document.body.style.pointerEvents = '';
+        }
+        if (document.body.style.overflow === 'hidden') {
+          document.body.style.overflow = '';
+        }
+        if (document.body.hasAttribute('data-scroll-locked')) {
+          document.body.removeAttribute('data-scroll-locked');
+        }
       }
     };
-    const observer = new MutationObserver(handlePointerFix);
-    observer.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+    const observer = new MutationObserver(() => {
+      handlePointerFix();
+      setTimeout(handlePointerFix, 50);
+      setTimeout(handlePointerFix, 260);
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['style', 'data-scroll-locked'], childList: true });
     return () => observer.disconnect();
   }, []);
 

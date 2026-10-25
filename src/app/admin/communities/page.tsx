@@ -382,13 +382,25 @@ function ManageCommunitiesTable() {
   // Prevent Radix UI bug from freezing page interaction after closing dialogs
   React.useEffect(() => {
     const handlePointerFix = () => {
-      const hasOpenDialog = document.querySelector('[role="dialog"], [data-state="open"]');
-      if (!hasOpenDialog && document.body.style.pointerEvents === 'none') {
-        document.body.style.pointerEvents = '';
+      const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (!hasOpenDialog) {
+        if (document.body.style.pointerEvents === 'none') {
+          document.body.style.pointerEvents = '';
+        }
+        if (document.body.style.overflow === 'hidden') {
+          document.body.style.overflow = '';
+        }
+        if (document.body.hasAttribute('data-scroll-locked')) {
+          document.body.removeAttribute('data-scroll-locked');
+        }
       }
     };
-    const observer = new MutationObserver(handlePointerFix);
-    observer.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+    const observer = new MutationObserver(() => {
+      handlePointerFix();
+      setTimeout(handlePointerFix, 50);
+      setTimeout(handlePointerFix, 260);
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['style', 'data-scroll-locked'], childList: true });
     return () => observer.disconnect();
   }, []);
 
