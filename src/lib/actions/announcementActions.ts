@@ -517,3 +517,23 @@ export async function runAnnouncementCleanupAction(): Promise<ActionResponse> {
         return { success: false, error: error.message };
     }
 }
+
+export async function toggleAnnouncementLoginPageAction(
+  announcementId: string,
+  showOnLoginPage: boolean
+): Promise<ActionResponse> {
+  if (!announcementId) {
+    return { success: false, error: "Announcement ID is required." };
+  }
+  try {
+    const { firestore } = initializeAdminApp();
+    await firestore.collection('announcements').doc(announcementId).update({
+      showOnLoginPage,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating login page visibility:", error);
+    return { success: false, error: error.message || 'Failed to update login page visibility.' };
+  }
+}
+

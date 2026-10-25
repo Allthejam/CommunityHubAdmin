@@ -33,6 +33,8 @@ import {
     Siren,
     Send,
     AlertCircle,
+    AlertTriangle,
+    LogIn,
 } from "lucide-react"
 import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
@@ -82,6 +84,8 @@ import Image from "next/image";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { toggleAnnouncementLoginPageAction } from "@/lib/actions/announcementActions";
 
 const announcementTypes: (Announcement['type'] | 'Urgent')[] = ["Standard", "Urgent", "Emergency"];
 const allStatuses: Announcement['status'][] = ["Live", "Scheduled", "Paused", "Archived"];
@@ -181,12 +185,14 @@ const getTypeBadge = (announcement: Announcement) => {
     return <Badge className={cn(typeStyles[announcement.type])}>{announcement.type}</Badge>;
 };
 
-const AnnouncementRow = React.memo(({ announcement, onPause, onReactivate, onCancel, onView }: {
+const AnnouncementRow = React.memo(({ announcement, onPause, onReactivate, onCancel, onView, onToggleLoginPage, isTogglingLogin }: {
     announcement: Announcement;
     onPause: (id: string) => void;
     onReactivate: (id: string) => void;
     onCancel: (id: string) => void;
     onView: (announcement: Announcement) => void;
+    onToggleLoginPage?: (announcement: Announcement, checked: boolean) => void;
+    isTogglingLogin?: boolean;
 }) => {
     const isArchived = announcement.status === 'Archived';
     const isLive = announcement.status === 'Live';
@@ -221,6 +227,24 @@ const AnnouncementRow = React.memo(({ announcement, onPause, onReactivate, onCan
             <TableCell className="table-cell" data-label="Type">{getTypeBadge(announcement)}</TableCell>
             <TableCell className="table-cell" data-label="Audience">{getAudienceSummary()}</TableCell>
             <TableCell className="table-cell" data-label="Status">{getStatusBadge()}</TableCell>
+            <TableCell className="table-cell" data-label="Login Screen" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2">
+                    <Switch
+                        checked={!!announcement.showOnLoginPage}
+                        disabled={isTogglingLogin}
+                        onCheckedChange={(checked) => onToggleLoginPage?.(announcement, checked)}
+                        aria-label="Toggle public login page display"
+                    />
+                    <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider",
+                        announcement.showOnLoginPage 
+                            ? "bg-primary/10 text-primary border border-primary/20" 
+                            : "bg-muted text-muted-foreground"
+                    )}>
+                        {announcement.showOnLoginPage ? "Public" : "Internal"}
+                    </span>
+                </div>
+            </TableCell>
             <TableCell className="table-cell" data-label="Scheduled Dates">{announcement.scheduledDates}</TableCell>
             <TableCell className="table-cell" data-label="Sent By">{announcement.sentBy}</TableCell>
             <TableCell className="table-cell text-right" data-label="Actions" onClick={(e) => e.stopPropagation()}>
@@ -393,6 +417,40 @@ export default function AdminAnnouncementsPage() {
   const handleReactivate = React.useCallback((announcementId: string) => updateAnnouncementStatus(announcementId, 'Live'), [updateAnnouncementStatus]);
   const handleCancel = React.useCallback((announcementId: string) => updateAnnouncementStatus(announcementId, 'Archived'), [updateAnnouncementStatus]);
   const handleView = React.useCallback((announcement: Announcement) => setViewingAnnouncement(announcement), []);
+
+  const [togglingLoginId, setTogglingLoginId] = React.useState<string | null>(null);
+
+  const handleToggleLoginPage = React.useCallback(async (announcement: Announcement, checked: boolean) => {
+    setTogglingLoginId(announcement.id);
+    try {
+      if (db) {
+        await updateDoc(doc(db, 'announcements', announcement.id), {
+          showOnLoginPage: checked,
+        });
+      } else {
+        const res = await toggleAnnouncementLoginPageAction(announcement.id, checked);
+        if (!res.success) throw new Error(res.error);
+      }
+      toast({
+        title: checked ? "Pinned to Login Page" : "Removed from Login Page",
+        description: `"${announcement.subject}" ${checked ? 'is now visible on the public sign-in page.' : 'is no longer shown on the sign-in page.'}`
+      });
+    } catch (err: any) {
+      console.warn("Client update failed, falling back to server action:", err);
+      try {
+        const res = await toggleAnnouncementLoginPageAction(announcement.id, checked);
+        if (!res.success) throw new Error(res.error);
+        toast({
+          title: checked ? "Pinned to Login Page" : "Removed from Login Page",
+          description: `"${announcement.subject}" ${checked ? 'is now visible on the public sign-in page.' : 'is no longer shown on the sign-in page.'}`
+        });
+      } catch (fallbackErr: any) {
+        toast({ title: "Update Failed", description: fallbackErr.message || "Failed to update login page status", variant: "destructive" });
+      }
+    } finally {
+      setTogglingLoginId(null);
+    }
+  }, [db, toast]);
 
   const createSortHandler = (setter: React.Dispatch<React.SetStateAction<{ key: keyof Announcement; order: 'asc' | 'desc' }>>) => (key: keyof Announcement) => {
     setter(prev => ({
@@ -691,6 +749,7 @@ export default function AdminAnnouncementsPage() {
                                 <TableHead><Button variant="ghost" onClick={() => createSortHandler(setSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => createSortHandler(setSorting)('audience')}>Audience <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => createSortHandler(setSorting)('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => createSortHandler(setSorting)('showOnLoginPage')}>Login Screen <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => createSortHandler(setSorting)('scheduledDates')}>Scheduled Dates <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => createSortHandler(setSorting)('sentBy')}>Sent By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
@@ -706,11 +765,13 @@ export default function AdminAnnouncementsPage() {
                                         onReactivate={handleReactivate}
                                         onCancel={handleCancel}
                                         onView={handleView}
+                                        onToggleLoginPage={handleToggleLoginPage}
+                                        isTogglingLogin={togglingLoginId === announcement.id}
                                     />
                                 ))
                             ) : (
                                 <TableRow className="table-row">
-                                    <TableCell colSpan={8} className="table-cell h-24 text-center">
+                                    <TableCell colSpan={9} className="table-cell h-24 text-center">
                                         No active platform dispatches found.
                                     </TableCell>
                                 </TableRow>
@@ -786,6 +847,7 @@ export default function AdminAnnouncementsPage() {
                                             <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('type')}>Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                             <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('audience')}>Audience <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                             <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('status')}>Status <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                            <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('showOnLoginPage')}>Login Screen <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                             <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('scheduledDates')}>Scheduled Dates <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                             <TableHead><Button variant="ghost" onClick={() => createSortHandler(setArchivedSorting)('sentBy')}>Sent By <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                             <TableHead className="text-right">Actions</TableHead>
@@ -801,11 +863,13 @@ export default function AdminAnnouncementsPage() {
                                                     onReactivate={handleReactivate}
                                                     onCancel={handleCancel}
                                                     onView={handleView}
+                                                    onToggleLoginPage={handleToggleLoginPage}
+                                                    isTogglingLogin={togglingLoginId === announcement.id}
                                                 />
                                             ))
                                         ) : (
                                             <TableRow className="table-row">
-                                                <TableCell colSpan={8} className="table-cell h-24 text-center">
+                                                <TableCell colSpan={9} className="table-cell h-24 text-center">
                                                     No archived platform dispatches found.
                                                 </TableCell>
                                             </TableRow>
@@ -869,6 +933,19 @@ export default function AdminAnnouncementsPage() {
                                     </div>
                                 </div>
                             </section>
+
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
+                                <div className="flex items-center gap-3">
+                                    <LogIn className="h-5 w-5 text-primary" />
+                                    <div>
+                                        <h4 className="text-xs font-bold">Public Sign-In Screen Placement</h4>
+                                        <p className="text-[11px] text-muted-foreground">Status of public sign-in page announcement bulletin</p>
+                                    </div>
+                                </div>
+                                <Badge variant={viewingAnnouncement.showOnLoginPage ? "default" : "secondary"} className={cn("font-black uppercase text-[10px]", viewingAnnouncement.showOnLoginPage && "bg-primary text-primary-foreground")}>
+                                    {viewingAnnouncement.showOnLoginPage ? "Active on Login Screen" : "Internal Platform Only"}
+                                </Badge>
+                            </div>
 
                             {viewingAnnouncement.image && (
                                 <div className="relative w-1/3 mx-auto aspect-video rounded-xl overflow-hidden shadow-sm border bg-muted group">

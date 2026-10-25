@@ -33,7 +33,8 @@ import {
     AlertTriangle,
     AlertCircle,
     UserCircle,
-    Shield
+    Shield,
+    LogIn
 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
@@ -690,18 +691,39 @@ export function BroadcastComposer() {
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
-                    <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Scheduling</Label>
-                    <div className="flex flex-wrap gap-4 items-center">
-                        <div className="flex items-center space-x-2">
-                            <Switch id="activation-mode" checked={activateImmediately} onCheckedChange={setActivateImmediately} />
-                            <Label htmlFor="activation-mode">{activateImmediately ? "Activate Immediately" : "Activate by Date"}</Label>
-                        </div>
-                        {!activateImmediately && selectedTier === 'standard' && (
-                            <div className="flex gap-2 animate-in slide-in-from-top-2">
-                                <DatePicker date={startDate} setDate={setStartDate} />
-                                <DatePicker date={endDate} setDate={setEndDate} />
+                    <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Scheduling & Placement</Label>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <div className="flex items-center space-x-2">
+                                <Switch id="activation-mode" checked={activateImmediately} onCheckedChange={setActivateImmediately} />
+                                <Label htmlFor="activation-mode">{activateImmediately ? "Activate Immediately" : "Activate by Date"}</Label>
                             </div>
-                        )}
+                            {!activateImmediately && selectedTier === 'standard' && (
+                                <div className="flex gap-2 animate-in slide-in-from-top-2">
+                                    <DatePicker date={startDate} setDate={setStartDate} />
+                                    <DatePicker date={endDate} setDate={setEndDate} />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <LogIn className="h-4 w-4 text-primary" />
+                                    <Label htmlFor="login-page-switch" className="text-sm font-semibold cursor-pointer">
+                                        Display on Public Login Page
+                                    </Label>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Pins this announcement as an official bulletin banner on the platform sign-in screen.
+                                </p>
+                            </div>
+                            <Switch 
+                                id="login-page-switch" 
+                                checked={showOnLoginPage} 
+                                onCheckedChange={setShowOnLoginPage} 
+                            />
+                        </div>
                     </div>
                 </div>
 
