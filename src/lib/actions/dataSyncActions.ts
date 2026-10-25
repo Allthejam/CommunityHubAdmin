@@ -26,32 +26,34 @@ export async function recalculateCommunityCounts(): Promise<ActionResponse> {
     const leaderCounts: Record<string, number> = {};
 
     // 1. Single-pass User Scan
-    // Build a map of counts for every community mentioned in user records
+    // Accurate calculation based on resident home community and explicit appointed community roles.
+    // Visitors who merely browse or visit another community are NEVER counted as members or leaders.
     const usersSnapshot = await usersRef.get();
     usersSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const role = (data.role || '').toLowerCase();
-        const isLeader = ['president', 'leader'].includes(role);
+        const isGlobalLeader = ['president', 'leader'].includes(role);
 
-        // Track membership (memberOf includes home community)
-        const memberOf = data.memberOf || [];
-        if (memberOf.length > 0) {
-            memberOf.forEach((cid: string) => {
-                if (!cid) return;
+        // A user's home community (their official residence/membership)
+        const homeId = data.homeCommunityId || data.primaryHomeCommunityId;
+        if (homeId) {
+            memberCounts[homeId] = (memberCounts[homeId] || 0) + 1;
+            // Only count as leader of their home community if they hold a leader role
+            if (isGlobalLeader) {
+                leaderCounts[homeId] = (leaderCounts[homeId] || 0) + 1;
+            }
+        }
+
+        // Additional official community assignments (e.g. multi-community leadership or staff)
+        if (data.communityRoles && typeof data.communityRoles === 'object') {
+            Object.entries(data.communityRoles).forEach(([cid, roleData]: [string, any]) => {
+                if (!cid || cid === homeId) return;
+                const cRole = (roleData?.role || '').toLowerCase();
                 memberCounts[cid] = (memberCounts[cid] || 0) + 1;
-                if (isLeader) {
+                if (['president', 'leader'].includes(cRole)) {
                     leaderCounts[cid] = (leaderCounts[cid] || 0) + 1;
                 }
             });
-        }
-
-        // Integrity Check: Ensure homeCommunityId is counted even if memberOf is missing it
-        if (data.homeCommunityId && !memberOf.includes(data.homeCommunityId)) {
-            const hId = data.homeCommunityId;
-            memberCounts[hId] = (memberCounts[hId] || 0) + 1;
-            if (isLeader) {
-                leaderCounts[hId] = (leaderCounts[hId] || 0) + 1;
-            }
         }
     });
 
@@ -67,12 +69,19 @@ export async function recalculateCommunityCounts(): Promise<ActionResponse> {
       const newMemberCount = memberCounts[communityId] || 0;
       const newLeaderCount = leaderCounts[communityId] || 0;
 
-      batch.update(communityDoc.ref, {
+      const commData = communityDoc.data();
+      const updatePayload: any = {
         memberCount: newMemberCount,
         leaderCount: newLeaderCount,
         lastStatsSync: Timestamp.now(),
         updatedAt: Timestamp.now()
-      });
+      };
+
+      if (newLeaderCount === 0 && commData.status === 'active') {
+        updatePayload.status = 'inactive';
+      }
+
+      batch.update(communityDoc.ref, updatePayload);
 
       communitiesUpdated++;
       currentBatchCount++;

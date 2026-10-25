@@ -379,6 +379,19 @@ function ManageCommunitiesTable() {
   const [revenueShareReason, setRevenueShareReason] = React.useState("");
   const [isSavingRevenue, setIsSavingRevenue] = React.useState(false);
 
+  // Prevent Radix UI bug from freezing page interaction after closing dialogs
+  React.useEffect(() => {
+    const handlePointerFix = () => {
+      const hasOpenDialog = document.querySelector('[role="dialog"], [data-state="open"]');
+      if (!hasOpenDialog && document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    };
+    const observer = new MutationObserver(handlePointerFix);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+    return () => observer.disconnect();
+  }, []);
+
   React.useEffect(() => {
     if (!db) {
         setLoading(false);
@@ -1074,7 +1087,11 @@ function ManageCommunitiesTable() {
                                             <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Open menu</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onClick={() => setViewingCommunityDetails(community)}>
+                                                <DropdownMenuItem onSelect={() => {
+                                                    setTimeout(() => {
+                                                        setViewingCommunityDetails(community);
+                                                    }, 0);
+                                                }}>
                                                     <Eye className="mr-2 h-4 w-4" />
                                                     View Details
                                                 </DropdownMenuItem>
@@ -1141,7 +1158,11 @@ function ManageCommunitiesTable() {
                             <ContextMenuContent>
                                 <ContextMenuLabel>Actions for {community.name}</ContextMenuLabel>
                                 <ContextMenuSeparator />
-                                <ContextMenuItem onSelect={() => setViewingCommunityDetails(community)}>
+                                <ContextMenuItem onSelect={() => {
+                                    setTimeout(() => {
+                                        setViewingCommunityDetails(community);
+                                    }, 0);
+                                }}>
                                     <Eye className="mr-2 h-4 w-4" />
                                     View Audit Snapshot
                                 </ContextMenuItem>
@@ -1213,7 +1234,14 @@ function ManageCommunitiesTable() {
             </Card>
 
             {/* AUDIT SNAPSHOT DIALOG */}
-            <Dialog open={!!viewingCommunityDetails} onOpenChange={() => setViewingCommunityDetails(null)}>
+            <Dialog open={!!viewingCommunityDetails} onOpenChange={(open) => {
+                if (!open) {
+                    setViewingCommunityDetails(null);
+                    setTimeout(() => {
+                        document.body.style.pointerEvents = '';
+                    }, 50);
+                }
+            }}>
                 <DialogContent className="max-w-2xl max-h-[90vh]">
                     <DialogHeader className="border-b pb-4">
                         <div className="flex items-center justify-between">

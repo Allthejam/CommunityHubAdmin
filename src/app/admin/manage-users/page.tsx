@@ -258,7 +258,9 @@ const UserRow = React.memo(({ user, unassignedCommunities, onAppoint, onUpdateSt
         <DropdownMenuContent align="end" className="max-h-[400px] overflow-y-auto">
             <DropdownMenuLabel>Actions for {user.name}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onViewDetails(user)}><Eye className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => {
+                setTimeout(() => onViewDetails(user), 0);
+            }}><Eye className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
             {adminPermissions?.actionImpersonateUser && (
                 <DropdownMenuItem onClick={() => onImpersonate(user)} className="text-primary font-bold">
                     <UserCheck className="mr-2 h-4 w-4" /> Impersonate Member
@@ -319,7 +321,9 @@ const UserRow = React.memo(({ user, unassignedCommunities, onAppoint, onUpdateSt
         <>
             <ContextMenuLabel>Actions for {user.name}</ContextMenuLabel>
             <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => onViewDetails(user)}><Eye className="mr-2 h-4 w-4" /> View Details</ContextMenuItem>
+            <ContextMenuItem onSelect={() => {
+                setTimeout(() => onViewDetails(user), 0);
+            }}><Eye className="mr-2 h-4 w-4" /> View Details</ContextMenuItem>
             {adminPermissions?.actionImpersonateUser && (
                 <ContextMenuItem onSelect={() => onImpersonate(user)} className="text-primary font-bold">
                     <UserCheck className="mr-2 h-4 w-4" /> Impersonate Member
@@ -816,6 +820,19 @@ export default function ManageUsersPage() {
   const isMobile = useIsMobile();
   const [selectedUserForDialog, setSelectedUserForDialog] = React.useState<User | null>(null);
   const [viewingOffensesUser, setViewingOffensesUser] = React.useState<User | null>(null);
+
+  // Prevent Radix UI bug from freezing page interaction after closing dialogs
+  React.useEffect(() => {
+    const handlePointerFix = () => {
+      const hasOpenDialog = document.querySelector('[role="dialog"], [data-state="open"]');
+      if (!hasOpenDialog && document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    };
+    const observer = new MutationObserver(handlePointerFix);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Table state
   const [filters, setFilters] = React.useState<{ name: string; role: string[]; status: string[] }>({ name: "", role: [], status: [] });
@@ -1352,7 +1369,14 @@ export default function ManageUsersPage() {
       </Card>
     </div>
 
-     <Dialog open={!!selectedUserForDialog} onOpenChange={() => setSelectedUserForDialog(null)}>
+     <Dialog open={!!selectedUserForDialog} onOpenChange={(open) => {
+        if (!open) {
+            setSelectedUserForDialog(null);
+            setTimeout(() => {
+                document.body.style.pointerEvents = '';
+            }, 50);
+        }
+     }}>
         <MemberDetailsDialog 
             user={selectedUserForDialog} 
             onUpdateStatus={handleUpdateStatus} 
@@ -1367,7 +1391,14 @@ export default function ManageUsersPage() {
         />
     </Dialog>
 
-    <Dialog open={!!viewingOffensesUser} onOpenChange={() => setViewingOffensesUser(null)}>
+    <Dialog open={!!viewingOffensesUser} onOpenChange={(open) => {
+        if (!open) {
+            setViewingOffensesUser(null);
+            setTimeout(() => {
+                document.body.style.pointerEvents = '';
+            }, 50);
+        }
+    }}>
         <OffenseHistoryDialog user={viewingOffensesUser} onClose={() => setViewingOffensesUser(null)} />
     </Dialog>
 
