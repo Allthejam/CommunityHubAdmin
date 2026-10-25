@@ -132,7 +132,6 @@ const teamManagementMenuItems = [
     { href: '/admin/team-management', label: 'Manage Team', icon: Users2 },
     { href: '/admin/team-management/appraisals-and-pay', label: 'Appraisals & Pay', icon: Stethoscope },
     { href: '/admin/staff-chat', label: 'Staff Chat', icon: MessageSquare },
-    { href: '/admin/audit-log', label: 'Audit Log', icon: ListOrdered },
     { href: '/admin/owner-adverts', label: 'Owner Adverts', icon: Volume2 },
     { href: '/admin/financials', label: 'Financials', icon: CreditCard },
 ];
@@ -196,6 +195,7 @@ export default function AdminHeader() {
   const settingsMenuItems = [
     { href: '/admin/platform-settings', label: 'Platform Settings', icon: Settings },
     { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },
+    { href: '/admin/audit-log', label: 'Audit Log', icon: ListOrdered },
     { href: '/admin/moderation', label: 'Moderation', icon: ShieldAlert },
     { href: '/admin/site-map', label: 'Site Map', icon: Route },
     { href: '/admin/app-development', label: 'App Development', icon: Code },
