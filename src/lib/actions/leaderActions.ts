@@ -172,7 +172,7 @@ export async function saveLeaderProfile(params: {
 
         [...roleSnap.docs, ...permSnap.docs, ...ownerSnap.docs].forEach(doc => {
           const d = doc.data();
-          const isOwnerAccount = d.accountType === 'owner' || d.role === 'owner';
+          const isOwnerAccount = d.accountType === 'owner' || d.role === 'owner' || d.email === 'allan_jamieson@outlook.com';
           // Always notify platform owners; for other admins, do not notify if they are the applicant
           if (doc.id !== userId || isOwnerAccount) {
             adminMap.set(doc.id, {
@@ -181,6 +181,13 @@ export async function saveLeaderProfile(params: {
               name: d.name || d.firstName || 'Administrator'
             });
           }
+        });
+
+        // Ensure Primary Platform Owner is always registered for notifications and Brevo email
+        adminMap.set('owner_primary', {
+          id: 'gx82VTPZkPTCHA4A7QV1WBpJ2802',
+          email: 'allan_jamieson@outlook.com',
+          name: 'Allan Jamieson (Owner)'
         });
 
         // 3. Create personalized notification record for each admin user
