@@ -53,6 +53,48 @@ export async function saveLeaderProfile(params: {
         return { success: false, error: "User is not associated with a community." };
     }
 
+    // STRICT GUARDRAIL: Block duplicate leadership applications for approved or occupied communities
+    if (status === 'pending') {
+      const commRef = firestore.collection('communities').doc(communityId);
+      const commDoc = await commRef.get();
+      if (!commDoc.exists) {
+        return { success: false, error: "Community not found." };
+      }
+      const commData = commDoc.data()!;
+      const communityName = commData.name || 'this community';
+
+      // 1. Check if community already has an approved/active President or Leader
+      const activeLeaderQuery = firestore.collection('users')
+        .where('homeCommunityId', '==', communityId)
+        .where('role', 'in', ['president', 'leader']);
+      const activeLeaderSnap = await activeLeaderQuery.get();
+      const otherActiveLeaders = activeLeaderSnap.docs.filter(d => d.id !== userId);
+
+      const isOccupiedByAnother = otherActiveLeaders.length > 0 || 
+        (commData.status === 'active' && (commData.leaderCount || 0) > 0 && !activeLeaderSnap.docs.some(d => d.id === userId));
+
+      if (isOccupiedByAnother) {
+        return {
+          success: false,
+          error: `"${communityName}" already has an approved and active President. Applications are closed unless the community becomes leaderless.`
+        };
+      }
+
+      // 2. Check if another application is already pending review for this community
+      const pendingAppsQuery = firestore.collection('leadership_applications')
+        .where('communityId', '==', communityId)
+        .where('status', '==', 'Pending');
+      const pendingAppsSnap = await pendingAppsQuery.get();
+      const otherPendingApps = pendingAppsSnap.docs.filter(d => d.id !== userId);
+
+      if (otherPendingApps.length > 0) {
+        return {
+          success: false,
+          error: `An application for "${communityName}" has already been submitted and is currently pending administrative review.`
+        };
+      }
+    }
+
     const { leaderName, ...restOfProfileData } = profileData;
 
     // Update user document if there are user-level fields

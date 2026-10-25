@@ -25,7 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { doc, getDoc, updateDoc, writeBatch } from "firebase/firestore";
+import { doc, getDoc, updateDoc, writeBatch, collection, getDocs, where, query } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { logAuditTrailAction } from "@/lib/actions/auditActions";
 
@@ -166,6 +166,26 @@ export default function ApplicationViewPage() {
                     leaderCount: 1,
                     updatedAt: now
                 }, { merge: true });
+
+                // 3b. Automatically archive any previous applications for this community to prevent duplicates
+                try {
+                    const olderAppsQuery = query(
+                        collection(db, 'leadership_applications'),
+                        where('communityId', '==', applicantData.communityId)
+                    );
+                    const olderAppsSnap = await getDocs(olderAppsQuery);
+                    olderAppsSnap.docs.forEach(oldDoc => {
+                        if (oldDoc.id !== applicantData.appId && (oldDoc.data().status === 'Approved' || oldDoc.data().status === 'Pending')) {
+                            batch.update(oldDoc.ref, {
+                                status: 'Archived',
+                                archivedAt: now,
+                                archiveReason: `Superseded by newly approved president (${applicantData.applicantName})`
+                            });
+                        }
+                    });
+                } catch (archiveErr) {
+                    console.warn("Could not archive older applications:", archiveErr);
+                }
 
                 // 4. Notify applicant
                 const notifRef = doc(collection(db, 'notifications'));
