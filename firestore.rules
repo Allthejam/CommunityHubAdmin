@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -11,17 +10,57 @@ service cloud.firestore {
       return isSignedIn() && 
              (
                request.auth.token.get('isAdmin', false) == true || 
-               request.auth.uid == 'gx82VTPZkPTCHA4A7QV1WBpJ2802' ||
+               request.auth.token.get('isStaff', false) == true || 
+               request.auth.token.get('role', '') in ['admin', 'owner', 'administrator', 'superadmin', 'president', 'support-specialist', 'support'] ||
+               request.auth.token.get('email', '') in [
+                 'allan_jamieson@outlook.com', 
+                 'west2uk@hotmail.co.uk', 
+                 'a.jamieson@my-community-hub.co.uk', 
+                 'info@my-community-hub.co.uk'
+               ] ||
+               request.auth.uid in [
+                 'gx82VTPZkPTCHA4A7QV1WBpJ2802',
+                 'pDyUjgP0F5Z3fY4eEGoKddgPpr93',
+                 'YVSK7VIB0nT4ISQT5dGm7oyRxKH3',
+                 'rTWrMNBUJBXnSSxQHw6Mh96NUrm1',
+                 'VpVV4crlUyfcr2iN01iSvzUqRUn1'
+               ] ||
                (
                  exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
                  (
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['admin', 'owner', 'administrator', 'Administrator', 'Admin', 'Owner', 'superadmin'] ||
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', '') in ['admin', 'owner', 'administrator'] ||
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(['permissions', 'isAdmin'], false) == true ||
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(['permissions', 'isStaff'], false) == true
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in [
+                     'admin', 'owner', 'administrator', 'Administrator', 'Admin', 'Owner', 'superadmin', 'president', 'support-specialist', 'support'
+                   ] ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', '') in [
+                     'admin', 'owner', 'administrator'
+                   ] ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('email', '') in [
+                     'allan_jamieson@outlook.com', 
+                     'west2uk@hotmail.co.uk', 
+                     'a.jamieson@my-community-hub.co.uk',
+                     'info@my-community-hub.co.uk'
+                   ] ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isStaff', false) == true ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', {}).get('isAdmin', false) == true ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', {}).get('isStaff', false) == true
                  )
                )
              );
+    }
+
+    function isStaff() {
+      return isSignedIn() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isStaff', false) == true ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', {}).get('isStaff', false) == true ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', {}).get('viewChat', false) == true
+          )
+        )
+      );
     }
     
     function isCommunityCreator() {
@@ -91,7 +130,6 @@ service cloud.firestore {
         )
       );
     }
-    
 
     match /careers/{document=**} {
       allow read: if true;
@@ -107,16 +145,20 @@ service cloud.firestore {
         allow write: if isOwner(userId) || isAdmin();
       }
     }
+
     match /communities/{communityId} {
       allow create: if isCommunityCreator() || isAdmin();
       allow read: if true;
       allow update: if isLeaderOf(communityId) || isAdmin();
+      allow delete: if isAdmin();
     }
+
     match /businesses/{businessId} {
       allow read: if true;
       allow create: if isBusinessOwner(businessId);
       allow update: if (isCommunityCreator() && communityHasNoLeader(resource.data.primaryCommunityId)) || isLeaderOf(resource.data.primaryCommunityId) || isAdmin() || isBusinessOwner(businessId);
     }
+
     match /businesses/{businessId}/products/{productId} {
         allow read: if true;
         allow write: if isBusinessOwner(businessId);
@@ -126,48 +168,59 @@ service cloud.firestore {
             allow write: if isBusinessOwner(businessId);
         }
     }
+
     match /whatson/{itemId} {
       allow create, update: if (isCommunityCreator() && communityHasNoLeader(request.resource.data.communityId)) || isLeaderOf(request.resource.data.communityId) || isAdmin();
       allow read: if true;
     }
+
     match /events/{eventId} {
       allow create, update: if (isCommunityCreator() && communityHasNoLeader(request.resource.data.communityId)) || isLeaderOf(request.resource.data.communityId) || isAdmin() || isBusinessOwner(request.resource.data.businessId);
       allow read: if true;
     }
+
     match /jobs/{jobId} {
       allow read: if true;
       allow write: if isSignedIn();
     }
+
     match /news/{storyId} {
       allow read: if true;
-      allow write: if isOwner(request.resource.data.authorId) || isLeaderOf(request.resource.data.communityId);
+      allow write: if isOwner(request.resource.data.authorId) || isLeaderOf(request.resource.data.communityId) || isAdmin();
     }
+
     match /charities/{charityId} {
         allow read: if true;
         allow write: if isLeaderOf(request.resource.data.communityId) || isAdmin();
     }
+
     match /announcements/{docId} {
         allow read: if true;
         allow write: if isLeaderOf(request.resource.data.communityId) || isAdmin();
     }
-     match /community_profiles/{profileId} {
+
+    match /community_profiles/{profileId} {
       allow read: if true;
       allow write: if isLeaderOf(profileId) || isAdmin();
     }
     
     match /communities/{communityId}/posts/{postId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isOwner(request.resource.data.authorId) || isLeaderOf(communityId);
+      allow create, update, delete: if isOwner(request.resource.data.authorId) || isLeaderOf(communityId) || isAdmin();
     }
+
     match /communities/{communityId}/posts/{postId}/comments/{commentId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn();
+        allow update, delete: if isOwner(resource.data.authorId) || isLeaderOf(communityId) || isAdmin();
     }
+
     match /communities/{communityId}/marketplace/{itemId} {
         allow read: if isSignedIn();
         allow create: if isOwner(request.resource.data.ownerId);
-        allow update, delete: if isOwner(resource.data.ownerId);
+        allow update, delete: if isOwner(resource.data.ownerId) || isAdmin();
     }
+
     match /communities/{communityId}/polls/{pollId} {
       allow read: if true;
       allow create: if isSignedIn();
@@ -180,14 +233,17 @@ service cloud.firestore {
         )
       );
     }
+
     match /jobSeekers/{seekerId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(request.resource.data.ownerId);
+      allow write: if isOwner(request.resource.data.ownerId) || isAdmin();
     }
-     match /communities/{communityId}/faqs/{faqId} {
+
+    match /communities/{communityId}/faqs/{faqId} {
         allow read: if true;
-        allow write: if isLeaderOf(communityId);
+        allow write: if isLeaderOf(communityId) || isAdmin();
     }
+
     match /communities/{communityId}/guestbook/{entryId} {
         allow read: if (resource == null) || (resource.data.status == 'Live') || isLeaderOf(communityId) || isAdmin();
         allow create: if isSignedIn();
@@ -198,10 +254,12 @@ service cloud.firestore {
         allow create: if isSignedIn();
         allow read, update: if isLeaderOf(resource.data.communityId) || isAdmin();
     }
+
     match /couriers/{courierId} {
         allow read: if true;
         allow create, update: if isOwner(courierId) || isAdmin();
     }
+
     match /communities/{communityId}/courier_applications/{applicationId} {
         allow create: if isSignedIn();
         allow read, update: if isLeaderOf(communityId) || isAdmin();
@@ -226,10 +284,13 @@ service cloud.firestore {
     }
 
     match /users/{userId}/recent_orders/{orderId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isOwner(userId) || isAdmin();
     }
     
-    match /audit_log/{logId} { allow read, write: if isAdmin(); }
+    match /audit_log/{logId} { 
+      allow read, write: if isAdmin(); 
+    }
+
     match /access_requests/{requestId} {
       allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isSignedIn() && (
@@ -238,6 +299,19 @@ service cloud.firestore {
         isAdmin()
       );
     }
+
+    match /authorized_logins/{loginId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /staff_channels/{channelId} {
+      allow read, write: if isSignedIn() && (isAdmin() || isStaff());
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn() && (isAdmin() || isStaff());
+      }
+    }
+
     match /platform_reports/{reportId} { allow read, write: if isSignedIn(); }
     match /pricing_plans/{planId} { allow read, write: if isAdmin(); }
     match /platform_overview/{docId} { allow read, write: if isAdmin(); }
@@ -256,8 +330,9 @@ service cloud.firestore {
         allow create: if isSignedIn();
         allow read: if isLeaderOf(resource.data.communityId) || 
                       (isPoliceLiaisonOf(resource.data.communityId) && 
-                       resource.data.category == 'report a crime');
-        allow update: if isLeaderOf(resource.data.communityId);
+                       resource.data.category == 'report a crime') ||
+                      isAdmin();
+        allow update: if isLeaderOf(resource.data.communityId) || isAdmin();
     }
 
     match /adverts/{advertId} {
@@ -286,13 +361,19 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if isSignedIn() && (resource == null || resource.data.recipientId == request.auth.uid || resource.data.userId == request.auth.uid || resource.data.recipientId == 'platform_admin' || isAdmin());
+      allow read: if isSignedIn() && (
+        resource == null || 
+        resource.data.recipientId == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        resource.data.recipientId == 'platform_admin' || 
+        isAdmin()
+      );
       allow write: if isSignedIn();
     }
 
     match /businesses/{businessId}/gallery/{itemId} {
       allow read: if true;
-      allow write: if isBusinessOwner(businessId);
+      allow write: if isBusinessOwner(businessId) || isAdmin();
     }
 
     match /lostAndFound/{itemId} {
@@ -308,7 +389,7 @@ service cloud.firestore {
     match /regionalPhotos/{photoId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /{document=**} {
