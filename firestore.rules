@@ -15,9 +15,10 @@ service cloud.firestore {
                (
                  exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
                  (
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['admin', 'owner'] ||
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', '') in ['admin', 'owner'] ||
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(['permissions', 'isAdmin'], false) == true
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['admin', 'owner', 'administrator', 'Administrator', 'Admin', 'Owner', 'superadmin'] ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', '') in ['admin', 'owner', 'administrator'] ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(['permissions', 'isAdmin'], false) == true ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(['permissions', 'isStaff'], false) == true
                  )
                )
              );

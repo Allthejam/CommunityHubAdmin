@@ -17,6 +17,8 @@ import {
     X,
     MapPin,
     Crown,
+    Ban,
+    ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -25,7 +27,10 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { doc, getDoc, updateDoc, writeBatch, collection, getDocs, where, query } from "firebase/firestore";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { doc, getDoc, updateDoc, writeBatch, collection, getDocs, where, query, deleteField } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { logAuditTrailAction } from "@/lib/actions/auditActions";
 
@@ -119,6 +124,119 @@ export default function ApplicationViewPage() {
         fetchApplicationData();
     }, [applicationId, db, toast]);
     
+        const [isRevokeDialogOpen, setIsRevokeDialogOpen] = React.useState(false);
+    const [revocationReason, setRevocationReason] = React.useState('');
+
+    const handleRevokeLeadership = async () => {
+        if (!applicantData || !userProfile || !db) return;
+        setIsProcessing(true);
+        const now = new Date();
+
+        try {
+            const batch = writeBatch(db);
+
+            // 1. Update application record with full audit metadata
+            const appRef = doc(db, 'leadership_applications', applicantData.appId);
+            batch.update(appRef, {
+                status: 'Archived',
+                revokedAt: now,
+                revokedBy: userProfile.name || 'Platform Administrator',
+                revokedById: user?.uid,
+                revocationReason: revocationReason.trim() || 'Leadership revoked by platform administrator',
+                updatedAt: now
+            });
+
+            // 2. Return community back to inactive status & reset leader count
+            const communityRef = doc(db, 'communities', applicantData.communityId);
+            batch.set(communityRef, {
+                status: 'inactive',
+                leaderCount: 0,
+                updatedAt: now
+            }, { merge: true });
+
+            // 3. Reset user role to personal
+            const userRef = doc(db, 'users', applicantData.applicantId);
+            batch.update(userRef, {
+                role: 'personal',
+                title: 'Personal',
+                'permissions.isLeader': false,
+                [`communityRoles.${applicantData.communityId}`]: deleteField()
+            });
+
+            // 4. Update community leader profile subcollection
+            const leaderProfileRef = doc(db, `communities/${applicantData.communityId}/leader_profiles`, applicantData.applicantId);
+            batch.set(leaderProfileRef, {
+                profileStatus: 'revoked',
+                revokedAt: now,
+                lastUpdated: now
+            }, { merge: true });
+
+            // 5. Send notification to user
+            const notifRef = doc(collection(db, 'notifications'));
+            batch.set(notifRef, {
+                recipientId: applicantData.applicantId,
+                type: 'Leadership Application',
+                subject: `Leadership Status Update: Leadership role revoked for ${applicantData.communityName}`,
+                from: "Platform Administration",
+                date: now,
+                status: 'new',
+                relatedId: applicantData.communityId,
+            });
+
+            await batch.commit();
+
+            // 6. Record forensic audit log
+            await logAuditTrailAction({
+                adminId: user?.uid,
+                adminName: userProfile.name || 'Platform Administrator',
+                adminEmail: user?.email || '',
+                action: 'leadership_application_revoked',
+                category: 'Applications & Vetting',
+                details: `Revoked leadership for ${applicantData.displayName} in community "${applicantData.communityName}". Community returned to inactive status. Reason: ${revocationReason.trim() || 'Administrative revocation'}.`,
+                targetUser: {
+                    id: applicantData.applicantId,
+                    name: applicantData.displayName,
+                    email: applicantData.email
+                },
+                targetObject: {
+                    id: applicantData.communityId,
+                    name: applicantData.communityName,
+                    type: 'Community Hub'
+                },
+                metadata: {
+                    applicationId: applicantData.appId,
+                    communityId: applicantData.communityId,
+                    reason: revocationReason,
+                    revokedBy: userProfile.name,
+                    previousStatus: 'Approved',
+                    newCommunityStatus: 'inactive'
+                }
+            });
+
+            toast({
+                title: "Leadership Revoked",
+                description: `${applicantData.displayName} is no longer leader. ${applicantData.communityName} has been returned to Inactive status.`
+            });
+
+            // Optimistically update local state
+            setApplicantData((prev: any) => ({
+                ...prev,
+                status: 'Archived',
+                revokedAt: { toDate: () => now },
+                revokedBy: userProfile.name || 'Platform Administrator',
+                revocationReason: revocationReason.trim() || 'Leadership revoked by platform administrator'
+            }));
+
+            setIsRevokeDialogOpen(false);
+            setRevocationReason('');
+        } catch (error: any) {
+            console.error("Revoke error:", error);
+            toast({ title: "Error", description: error.message || "Failed to revoke leadership.", variant: "destructive" });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const handleUpdateStatus = async (status: 'Approved' | 'Declined') => {
         if (!db || !applicantData?.appId || !userProfile?.name || !applicantData?.communityId || !applicantData?.applicantId) {
              toast({ title: "Error", description: "Cannot process application. Missing required data.", variant: "destructive" });
@@ -350,7 +468,7 @@ export default function ApplicationViewPage() {
                     </div>
                 </CardContent>
 
-                {applicantData.status === 'Pending' ? (
+                                {applicantData.status === 'Pending' ? (
                     <CardFooter className="flex justify-end gap-4 p-8 bg-muted/30 border-t print:hidden">
                         <Button variant="outline" className="text-destructive border-destructive/20 hover:bg-destructive/10" onClick={() => handleUpdateStatus('Declined')} disabled={isProcessing}>
                             {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <X className="mr-2 h-4 w-4" />}
@@ -362,26 +480,107 @@ export default function ApplicationViewPage() {
                         </Button>
                     </CardFooter>
                 ) : (
-                    <CardFooter className="p-8 bg-muted/30 border-t">
-                        <div className="w-full rounded-lg border bg-background p-6 space-y-3">
-                            <h3 className="font-bold flex items-center gap-2"><CheckCircle2 className="text-green-600" /> Application Processed</h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                    <CardFooter className="p-8 bg-muted/30 border-t flex flex-col space-y-4">
+                        <div className="w-full rounded-lg border bg-background p-6 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b pb-3">
+                                <h3 className="font-bold flex items-center gap-2">
+                                    <CheckCircle2 className={applicantData.status === 'Approved' ? "text-green-600 h-5 w-5" : "text-slate-500 h-5 w-5"} />
+                                    Application Record Status
+                                </h3>
+                                <Badge variant={applicantData.status === 'Approved' ? "default" : "secondary"} className={applicantData.status === 'Approved' ? "bg-green-600 text-white font-bold" : "font-bold"}>
+                                    {applicantData.revokedAt ? 'Archived (Revoked)' : applicantData.status}
+                                </Badge>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                 <div>
-                                    <p className="text-muted-foreground uppercase text-[10px] font-bold">Status</p>
-                                    <p className="font-semibold">{applicantData.status}</p>
+                                    <p className="text-muted-foreground uppercase text-[10px] font-bold">Processed By</p>
+                                    <p className="font-semibold">{applicantData.processedBy || 'Platform Administrator'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-muted-foreground uppercase text-[10px] font-bold">Administrator</p>
-                                    <p className="font-semibold">{applicantData.processedBy}</p>
-                                </div>
-                                <div className="col-span-2">
                                     <p className="text-muted-foreground uppercase text-[10px] font-bold">Decision Date</p>
                                     <p className="font-semibold">{applicantData.processedAt ? (typeof applicantData.processedAt.toDate === 'function' ? format(applicantData.processedAt.toDate(), "PPPp") : format(new Date(applicantData.processedAt), "PPPp")) : 'N/A'}</p>
                                 </div>
+
+                                {applicantData.revokedAt && (
+                                    <>
+                                        <div className="border-t pt-3">
+                                            <p className="text-destructive uppercase text-[10px] font-bold">Revoked By</p>
+                                            <p className="font-semibold text-destructive">{applicantData.revokedBy || 'Platform Administrator'}</p>
+                                        </div>
+                                        <div className="border-t pt-3">
+                                            <p className="text-destructive uppercase text-[10px] font-bold">Revocation Date</p>
+                                            <p className="font-semibold">{typeof applicantData.revokedAt.toDate === 'function' ? format(applicantData.revokedAt.toDate(), "PPPp") : format(new Date(applicantData.revokedAt), "PPPp")}</p>
+                                        </div>
+                                        {applicantData.revocationReason && (
+                                            <div className="col-span-1 sm:col-span-2 bg-destructive/5 p-3 rounded border border-destructive/20 text-xs">
+                                                <p className="font-bold text-destructive uppercase text-[9px] mb-1">Revocation Reason</p>
+                                                <p className="italic text-muted-foreground">{applicantData.revocationReason}</p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
+
+                            {applicantData.status === 'Approved' && !applicantData.revokedAt && (
+                                <div className="border-t pt-4 flex justify-between items-center print:hidden">
+                                    <div className="text-xs text-muted-foreground">
+                                        Need to remove this president? Revoking will return <strong>{applicantData.communityName}</strong> back to inactive status.
+                                    </div>
+                                    <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="font-bold gap-2"
+                                        onClick={() => setIsRevokeDialogOpen(true)}
+                                        disabled={isProcessing}
+                                    >
+                                        <Ban className="h-4 w-4" /> Revoke Leadership
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     </CardFooter>
                 )}
+
+                <Dialog open={isRevokeDialogOpen} onOpenChange={setIsRevokeDialogOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-destructive">
+                                <ShieldAlert className="h-5 w-5" /> Revoke Leadership & Deactivate Hub
+                            </DialogTitle>
+                            <DialogDescription className="text-xs leading-relaxed pt-2">
+                                Are you sure you want to revoke leadership from <strong>{applicantData.displayName}</strong> for <strong>{applicantData.communityName}</strong>?
+                                <br /><br />
+                                This action will:
+                                <ul className="list-disc pl-5 mt-1 space-y-1 text-foreground">
+                                    <li>Remove president permissions from the user.</li>
+                                    <li>Return <strong>{applicantData.communityName}</strong> back to <strong>Inactive</strong> status.</li>
+                                    <li>Archive this application record with a forensic timestamp.</li>
+                                    <li>Re-open the community for future leadership applications.</li>
+                                </ul>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2 py-3">
+                            <Label htmlFor="revoke-reason" className="text-xs font-bold uppercase tracking-wider">Reason for Revocation (Audit Trail)</Label>
+                            <Textarea 
+                                id="revoke-reason"
+                                placeholder="e.g. Leader requested resignation, inactivity, or policy non-compliance..."
+                                value={revocationReason}
+                                onChange={(e) => setRevocationReason(e.target.value)}
+                                className="text-xs"
+                                rows={3}
+                            />
+                        </div>
+                        <DialogFooter className="gap-2 sm:gap-0">
+                            <Button variant="outline" onClick={() => setIsRevokeDialogOpen(false)} disabled={isProcessing}>
+                                Cancel
+                            </Button>
+                            <Button variant="destructive" onClick={handleRevokeLeadership} disabled={isProcessing} className="font-bold gap-1.5">
+                                {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Confirm Revoke Leadership
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </Card>
         </div>
     )

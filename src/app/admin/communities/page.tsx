@@ -37,7 +37,7 @@ import {
     RotateCw,
     Info,
 } from "lucide-react"
-import { collection, query, onSnapshot, serverTimestamp, doc, getDocs, where, limit, writeBatch, getDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, serverTimestamp, doc, getDocs, where, limit, writeBatch, getDoc, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { updateCommunityStatusAction, renameCommunityAction, updateCommunityTypeAction, updateCommunityVisibilityAction, runSetCommunityRevenueShare, runBulkUpdateCommunityStatus } from "@/lib/actions/communityActions";
+import { logAuditTrailAction } from "@/lib/actions/auditActions";
 import { recalculateCommunityCounts } from "@/lib/actions/dataSyncActions";
 import { runImpersonateUser } from "@/lib/actions/userActions";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -505,12 +506,45 @@ function ManageCommunitiesTable() {
   };
   
     const handleUpdateStatus = async (communityId: string, status: Community['status']) => {
-        const result = await updateCommunityStatusAction({ communityId, newStatus: status });
-        if (result.success) {
-            toast({ title: 'Status Updated', description: `Community status changed to ${status}.` });
-        } else {
-            toast({ title: 'Error', description: result.error, variant: "destructive" });
+        let updated = false;
+
+        // 1. Direct update via client Firestore instance using authenticated admin session
+        if (db) {
+            try {
+                await updateDoc(doc(db, 'communities', communityId), {
+                    status,
+                    updatedAt: serverTimestamp()
+                });
+                updated = true;
+                logAuditTrailAction({
+                    adminId: user?.uid || 'system_admin',
+                    adminName: (userProfile as any)?.name || user?.displayName || 'Platform Administration',
+                    action: `community_status_${status.replace(/\s+/g, '_')}`,
+                    category: 'Communities & Hubs',
+                    details: `Updated status of community "${communityId}" to "${status}".`,
+                    targetObject: { id: communityId, name: communityId, type: 'Community Hub' },
+                    metadata: { newStatus: status }
+                }).catch(() => {});
+            } catch (clientErr) {
+                console.warn("Client direct update encountered error, falling back to server action:", clientErr);
+            }
         }
+
+        // 2. Server action fallback if client direct update was not performed or failed
+        if (!updated) {
+            const result = await updateCommunityStatusAction({ 
+                communityId, 
+                newStatus: status,
+                adminId: user?.uid,
+                adminName: (userProfile as any)?.name || user?.displayName || 'Platform Administration'
+            });
+            if (!result.success) {
+                toast({ title: 'Error', description: result.error || 'Failed to update community status.', variant: "destructive" });
+                return;
+            }
+        }
+
+        toast({ title: 'Status Updated', description: `Community status changed to ${status}.` });
     };
     
     const handleAppointClick = (community: Community) => {
