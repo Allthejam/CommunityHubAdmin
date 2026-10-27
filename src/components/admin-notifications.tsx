@@ -2,8 +2,8 @@
 'use client';
 
 import * as React from 'react';
-import { Bell, Loader2, Shield, Crown, Building2 } from 'lucide-react';
-import { collection, onSnapshot, query, where, or, and } from 'firebase/firestore';
+import { Bell, Loader2, Shield, Crown, Building2, CheckCheck } from 'lucide-react';
+import { collection, onSnapshot, query, where, or, and, doc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
@@ -118,9 +118,27 @@ export function AdminNotifications() {
   };
   
   const handleView = async (notification: Notification) => {
-    const result = await updateNotificationStatusAction({ notificationId: notification.id, status: 'Read' });
-    if (!result.success) {
-      toast({ title: 'Error', description: 'Could not mark notification as read.', variant: 'destructive' });
+    // Optimistically remove from unread list so the bell badge updates immediately
+    setNotifications(prev => prev.filter(n => n.id !== notification.id));
+
+    let markedRead = false;
+    if (db) {
+      try {
+        await updateDoc(doc(db, 'notifications', notification.id), {
+          status: 'Read',
+          updatedAt: serverTimestamp(),
+        });
+        markedRead = true;
+      } catch (clientErr) {
+        console.warn('Client Firestore notification update failed, falling back to Server Action:', clientErr);
+      }
+    }
+
+    if (!markedRead) {
+      const result = await updateNotificationStatusAction({ notificationId: notification.id, status: 'Read' });
+      if (!result.success) {
+        toast({ title: 'Error', description: 'Could not mark notification as read.', variant: 'destructive' });
+      }
     }
 
     let path = '#';
@@ -172,6 +190,27 @@ export function AdminNotifications() {
     return 'recently';
   };
 
+  const handleMarkAllAsRead = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!db || notifications.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      notifications.forEach(n => {
+        batch.update(doc(db, 'notifications', n.id), {
+          status: 'Read',
+          updatedAt: serverTimestamp(),
+        });
+      });
+      setNotifications([]);
+      await batch.commit();
+      toast({ title: 'Notifications Marked as Read', description: 'All unread notifications have been cleared.' });
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+      toast({ title: 'Error', description: 'Could not mark notifications as read.', variant: 'destructive' });
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -190,7 +229,19 @@ export function AdminNotifications() {
           <DropdownMenuLabel className="p-0 font-black text-xs uppercase tracking-wider">
             Notifications Center
           </DropdownMenuLabel>
-          <span className="text-[10px] font-bold text-muted-foreground uppercase">{notifications.length} Unread</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">{notifications.length} Unread</span>
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5"
+              >
+                <CheckCheck className="h-3 w-3" />
+                Mark all read
+              </button>
+            )}
+          </div>
         </div>
         <DropdownMenuSeparator />
         {loading ? (

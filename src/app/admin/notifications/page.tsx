@@ -32,7 +32,7 @@ import {
     FileText,
     Trash2,
 } from "lucide-react"
-import { collection, query, where, doc, orderBy, or, onSnapshot } from "firebase/firestore";
+import { collection, query, where, doc, orderBy, or, onSnapshot, updateDoc, deleteDoc, writeBatch, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -119,8 +119,9 @@ const normalizeNotificationStatus = (status: string | undefined): NotificationSt
   if (!status) return 'New';
   const s = status.toLowerCase();
   if (s === 'new' || s === 'unread') return 'New';
+  if (s === 'read') return 'Read';
   if (s === 'assigned') return 'Assigned';
-  if (s === 'complete' || s === 'completed' || s === 'read') return 'Complete';
+  if (s === 'complete' || s === 'completed') return 'Complete';
   if (s === 'reassigned') return 'Reassigned';
   if (s === 'archived') return 'Archived';
   return (status.charAt(0).toUpperCase() + status.slice(1)) as NotificationStatus;
@@ -130,11 +131,11 @@ const StatusBadge = ({ status }: { status: string }) => {
   const normalized = normalizeNotificationStatus(status);
   const statusConfig: Record<string, string> = {
     New: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300",
+    Read: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300",
     Assigned: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300",
     Complete: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300",
     Reassigned: "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300",
     Archived: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
-    Read: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
   };
   return <Badge className={statusConfig[normalized] || "bg-gray-100"}>{normalized}</Badge>;
 };
@@ -147,9 +148,34 @@ const getSafeDate = (d: any): Date => {
     return isValid(date) ? date : new Date(0);
 };
 
+const getNotificationTargetPath = (notification: Notification | null): string => {
+    if (!notification) return '';
+    if ((notification as any).actionUrl) {
+        const target = String((notification as any).actionUrl);
+        return target.startsWith('/admin/team/')
+            ? target.replace('/admin/team/', '/admin/applications/')
+            : target;
+    }
+    switch (notification.type) {
+        case 'New Report': return '/admin/reports';
+        case 'Leadership Application': return notification.relatedId ? `/admin/applications/${notification.relatedId}` : '/admin/applications';
+        case 'Special Access Request': return notification.relatedId ? `/admin/special-access/${notification.relatedId}` : '/admin/special-access';
+        case 'Boundary Dispute': return '/admin/communities/map';
+        case 'Advertiser Profile': return notification.relatedId ? `/admin/national-advertisers/${notification.relatedId}` : '/admin/national-advertisers';
+        case 'New Community': return '/admin/communities';
+        case 'Business Submission': return '/admin/businesses';
+        case 'Leader Information Update': return notification.relatedId ? `/admin/applications/${notification.relatedId}` : '/admin/applications';
+        case 'New Message': return notification.from === "Platform Administration" && notification.relatedId ? `/admin/staff-chat?conversationId=${notification.relatedId}` : '/admin/staff-chat';
+        case 'Task Assignment': return '/admin/app-development';
+        default: return '';
+    }
+};
+
 const NotificationRow = React.memo(({ 
     notification, 
     onView, 
+    onOpenRecord,
+    onUpdateStatus,
     openAssignDialog, 
     onDelete, 
     isSelected, 
@@ -157,6 +183,8 @@ const NotificationRow = React.memo(({
 }: { 
     notification: Notification; 
     onView: (notification: Notification) => void;
+    onOpenRecord: (notification: Notification) => void;
+    onUpdateStatus: (id: string, status: NotificationStatus) => void;
     openAssignDialog: (notification: Notification) => void;
     onDelete: (id: string) => void;
     isSelected: boolean;
@@ -165,6 +193,7 @@ const NotificationRow = React.memo(({
     const isNew = normalizeNotificationStatus(notification.status) === 'New';
     const formattedDate = React.useMemo(() => format(getSafeDate(notification.date), 'PPP'), [notification.date]);
     const isPlatformAdmin = notification.recipientId === 'platform_admin';
+    const targetPath = getNotificationTargetPath(notification);
 
     return (
         <TableRow className={cn(isNew ? 'bg-primary/5' : '', 'cursor-pointer group')} onClick={() => onView(notification)}>
@@ -215,10 +244,18 @@ const NotificationRow = React.memo(({
                     <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => onView(notification)}><Eye className="mr-2 h-4 w-4"/>View Details</DropdownMenuItem>
+                        {targetPath && (
+                            <DropdownMenuItem onClick={() => onOpenRecord(notification)}><ExternalLink className="mr-2 h-4 w-4"/>Open Related Record</DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
+                        {isNew ? (
+                            <DropdownMenuItem onClick={() => onUpdateStatus(notification.id, 'Read')}><CheckCircle2 className="mr-2 h-4 w-4"/>Mark as Read</DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem onClick={() => onUpdateStatus(notification.id, 'New')}><Mail className="mr-2 h-4 w-4"/>Mark as Unread</DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => openAssignDialog(notification)}><User className="mr-2 h-4 w-4"/>Assign / Re-assign</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateNotificationStatusAction({ notificationId: notification.id, status: 'Complete' })}><CheckCircle2 className="mr-2 h-4 w-4"/>Mark as Complete</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateNotificationStatusAction({ notificationId: notification.id, status: 'Archived' })}><Archive className="mr-2 h-4 w-4"/>Archive</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdateStatus(notification.id, 'Complete')}><CheckCircle2 className="mr-2 h-4 w-4"/>Mark as Complete</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdateStatus(notification.id, 'Archived')}><Archive className="mr-2 h-4 w-4"/>Archive</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(notification.id)}><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
@@ -232,6 +269,7 @@ NotificationRow.displayName = "NotificationRow";
 const TABS: { value: string, label: string }[] = [
     { value: "all", label: "All" },
     { value: "New", label: "New" },
+    { value: "Read", label: "Read" },
     { value: "Assigned", label: "Assigned" },
     { value: "Complete", label: "Complete" },
     { value: "Archived", label: "Archived" },
@@ -246,7 +284,7 @@ export default function AdminNotificationsPage() {
     const userProfileRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [user, db]);
     const { data: userProfile, isLoading: profileLoading } = useDoc(userProfileRef);
 
-    const [activeTab, setActiveTab] = React.useState("New");
+    const [activeTab, setActiveTab] = React.useState("all");
     const [scopeFilter, setScopeFilter] = React.useState<"all" | "admin" | "leader">("all");
     const [isAssignDialogOpen, setIsAssignDialogOpen] = React.useState(false);
     const [selectedNotification, setSelectedNotification] = React.useState<Notification | null>(null);
@@ -319,58 +357,119 @@ export default function AdminNotificationsPage() {
     const pageCount = Math.ceil(filteredAndSortedNotifications.length / pagination.pageSize);
 
     const handleUpdateStatus = async (notificationId: string, status: NotificationStatus) => {
+        const actorName = userProfile?.name || user?.displayName || user?.email || 'Admin';
+        if (db) {
+            try {
+                await updateDoc(doc(db, 'notifications', notificationId), {
+                    status,
+                    updatedAt: serverTimestamp(),
+                    history: arrayUnion({
+                        action: status,
+                        actor: actorName,
+                        timestamp: new Date().toISOString(),
+                    }),
+                });
+                return;
+            } catch (clientErr) {
+                console.warn('Client Firestore notification status update failed, falling back to Server Action:', clientErr);
+            }
+        }
         const result = await updateNotificationStatusAction({ 
             notificationId, 
             status,
-            actor: userProfile?.name || 'Admin',
+            actor: actorName,
         });
         if (!result.success) toast({ title: 'Error', description: result.error, variant: 'destructive'});
-    }
+    };
+
+    const handleDelete = async (notificationId: string) => {
+        if (db) {
+            try {
+                await deleteDoc(doc(db, 'notifications', notificationId));
+                toast({ title: 'Notification Deleted' });
+                return;
+            } catch (clientErr) {
+                console.warn('Client Firestore notification delete failed, falling back to Server Action:', clientErr);
+            }
+        }
+        const result = await deleteNotificationAction({ notificationId });
+        if (!result.success) {
+            toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        } else {
+            toast({ title: 'Notification Deleted' });
+        }
+    };
 
     const handleView = async (notification: Notification) => {
-        // CLOSE POPUP IMMEDIATELY to prevent UI lock during navigation
+        const wasNew = normalizeNotificationStatus(notification.status) === 'New';
+        const updatedNotif: Notification = wasNew
+            ? { ...notification, status: 'Read' }
+            : notification;
+
+        setViewingDetails(updatedNotif);
+
+        if (wasNew) {
+            await handleUpdateStatus(notification.id, 'Read');
+        }
+    };
+
+    const handleOpenRecord = async (notification: Notification) => {
         setViewingDetails(null);
 
-        if (notification.status === 'New') {
-            handleUpdateStatus(notification.id, 'Read');
+        if (normalizeNotificationStatus(notification.status) === 'New') {
+            await handleUpdateStatus(notification.id, 'Read');
         }
 
-        let path = '';
-        switch (notification.type) {
-            case 'New Report': path = '/admin/reports'; break;
-            case 'Leadership Application': path = `/admin/applications/${notification.relatedId}`; break;
-            case 'Special Access Request': path = `/admin/special-access/${notification.relatedId}`; break;
-            case 'Boundary Dispute': path = `/admin/communities/map`; break;
-            case 'Advertiser Profile': path = `/admin/national-advertisers/${notification.relatedId}`; break;
-            case 'New Community': path = '/admin/communities'; break;
-            case 'Business Submission': path = '/admin/businesses'; break;
-            case 'Leader Information Update': path = `/admin/applications/${notification.relatedId}`; break;
-            case 'New Message': if (notification.from === "Platform Administration") path = `/admin/staff-chat?conversationId=${notification.relatedId}`; break;
-            case 'Task Assignment': path = '/admin/app-development'; break;
-            default: setViewingDetails(notification); return;
+        const path = getNotificationTargetPath(notification);
+        if (path) {
+            router.push(path);
         }
-
-        if (path) router.push(path);
     };
 
     const handleConfirmAssignment = async () => {
         if (!selectedNotification || !assigneeId) return;
         setIsUpdating(true);
         const assignee = teamMembers.find(m => m.id === assigneeId);
-        const result = await updateNotificationStatusAction({ 
-            notificationId: selectedNotification.id, 
-            status: "Assigned",
-            actor: userProfile?.name || 'Admin',
-            assignedTo: { id: assigneeId, name: assignee?.name || 'Unknown' }
-        });
-        setIsUpdating(false);
-        if (result.success) {
-            toast({ title: 'Notification Assigned' });
-            setIsAssignDialogOpen(false);
-        } else {
-            toast({ title: 'Error', description: result.error, variant: 'destructive'});
+        const actorName = userProfile?.name || user?.displayName || user?.email || 'Admin';
+        const assignedToObj = { id: assigneeId, name: assignee?.name || 'Unknown' };
+
+        let savedViaClient = false;
+        if (db) {
+            try {
+                await updateDoc(doc(db, 'notifications', selectedNotification.id), {
+                    status: 'Assigned',
+                    assignedTo: assignedToObj,
+                    updatedAt: serverTimestamp(),
+                    history: arrayUnion({
+                        action: 'Assigned',
+                        actor: actorName,
+                        timestamp: new Date().toISOString(),
+                    }),
+                });
+                savedViaClient = true;
+            } catch (clientErr) {
+                console.warn('Client assignment failed, falling back to Server Action:', clientErr);
+            }
         }
-    }
+
+        if (!savedViaClient) {
+            const result = await updateNotificationStatusAction({ 
+                notificationId: selectedNotification.id, 
+                status: "Assigned",
+                actor: actorName,
+                assignedTo: assignedToObj
+            });
+            if (!result.success) {
+                setIsUpdating(false);
+                toast({ title: 'Error', description: result.error, variant: 'destructive'});
+                return;
+            }
+        }
+
+        setIsUpdating(false);
+        toast({ title: 'Notification Assigned' });
+        setIsAssignDialogOpen(false);
+    };
 
     const toggleSelectRow = React.useCallback((id: string) => {
         setSelectedIds(prev => {
@@ -383,23 +482,74 @@ export default function AdminNotificationsPage() {
     const handleBulkStatusUpdate = async (status: NotificationStatus) => {
         if (selectedIds.size === 0) return;
         setIsUpdating(true);
-        const result = await bulkUpdateNotificationStatusAction({ notificationIds: Array.from(selectedIds), status, actor: userProfile?.name || 'Admin' });
-        setIsUpdating(false);
-        if (result.success) {
-            toast({ title: 'Bulk Update Success' });
-            setSelectedIds(new Set());
+        const ids = Array.from(selectedIds);
+        const actorName = userProfile?.name || user?.displayName || user?.email || 'Admin';
+
+        let updatedViaClient = false;
+        if (db) {
+            try {
+                const batch = writeBatch(db);
+                ids.forEach(id => {
+                    batch.update(doc(db, 'notifications', id), {
+                        status,
+                        updatedAt: serverTimestamp(),
+                        history: arrayUnion({
+                            action: status,
+                            actor: actorName,
+                            timestamp: new Date().toISOString(),
+                        }),
+                    });
+                });
+                await batch.commit();
+                updatedViaClient = true;
+            } catch (clientErr) {
+                console.warn('Client bulk status update failed, falling back to Server Action:', clientErr);
+            }
         }
+
+        if (!updatedViaClient) {
+            const result = await bulkUpdateNotificationStatusAction({ notificationIds: ids, status, actor: actorName });
+            if (!result.success) {
+                setIsUpdating(false);
+                toast({ title: 'Error', description: result.error || 'Bulk update failed', variant: 'destructive' });
+                return;
+            }
+        }
+
+        setIsUpdating(false);
+        toast({ title: 'Bulk Update Success' });
+        setSelectedIds(new Set());
     };
 
     const handleBulkDelete = async () => {
         if (selectedIds.size === 0 || !confirm("Delete selected?")) return;
         setIsUpdating(true);
-        const result = await bulkDeleteNotificationsAction({ notificationIds: Array.from(selectedIds) });
-        setIsUpdating(false);
-        if (result.success) {
-            toast({ title: 'Bulk Deletion Complete' });
-            setSelectedIds(new Set());
+        const ids = Array.from(selectedIds);
+
+        let deletedViaClient = false;
+        if (db) {
+            try {
+                const batch = writeBatch(db);
+                ids.forEach(id => batch.delete(doc(db, 'notifications', id)));
+                await batch.commit();
+                deletedViaClient = true;
+            } catch (clientErr) {
+                console.warn('Client bulk delete failed, falling back to Server Action:', clientErr);
+            }
         }
+
+        if (!deletedViaClient) {
+            const result = await bulkDeleteNotificationsAction({ notificationIds: ids });
+            if (!result.success) {
+                setIsUpdating(false);
+                toast({ title: 'Error', description: result.error || 'Bulk delete failed', variant: 'destructive' });
+                return;
+            }
+        }
+
+        setIsUpdating(false);
+        toast({ title: 'Bulk Deletion Complete' });
+        setSelectedIds(new Set());
     };
 
     const openAssignDialog = (notification: Notification) => {
@@ -533,7 +683,7 @@ export default function AdminNotificationsPage() {
                     </div>
 
                     <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setPagination(p => ({ ...p, pageIndex: 0 })); }}>
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto p-1 bg-muted/60">
+                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-muted/60">
                             {TABS.map(tab => <TabsTrigger key={tab.value} value={tab.value} className="text-xs font-bold py-1.5">{tab.label}</TabsTrigger>)}
                         </TabsList>
                     </Tabs>
@@ -549,33 +699,33 @@ export default function AdminNotificationsPage() {
                                         onCheckedChange={() => selectedIds.size === paginatedNotifications.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(paginatedNotifications.map(n => n.id)))}
                                     />
                                 </TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => setSorting(p => ({ key: 'type', order: p.key === 'type' && p.order === 'asc' ? 'desc' : 'asc' }))} className="p-0 hover:bg-transparent font-bold">Type <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => setSorting(p => ({ key: 'subject', order: p.key === 'subject' && p.order === 'asc' ? 'desc' : 'asc' }))} className="p-0 hover:bg-transparent font-bold">Notification / Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead>Channel / Scope</TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => setSorting(p => ({ key: 'subject', order: p.key === 'subject' && p.order === 'asc' ? 'desc' : 'asc' }))} className="p-0 hover:bg-transparent font-bold">Subject <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => setSorting(p => ({ key: 'from', order: p.key === 'from' && p.order === 'asc' ? 'desc' : 'asc' }))} className="p-0 hover:bg-transparent font-bold">From <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => setSorting(p => ({ key: 'date', order: p.key === 'date' && p.order === 'asc' ? 'desc' : 'asc' }))} className="p-0 hover:bg-transparent font-bold">Date <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => setSorting(p => ({ key: 'date', order: p.key === 'date' && p.order === 'asc' ? 'desc' : 'asc' }))} className="p-0 hover:bg-transparent font-bold">Date <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead>Assigned To</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                <TableRow><TableCell colSpan={9} className="h-48 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto text-primary" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={7} className="h-48 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto text-primary" /></TableCell></TableRow>
                             ) : paginatedNotifications.length > 0 ? (
                                 paginatedNotifications.map((notification) => (
                                     <NotificationRow 
                                         key={notification.id} 
                                         notification={notification} 
                                         onView={handleView} 
+                                        onOpenRecord={handleOpenRecord}
+                                        onUpdateStatus={handleUpdateStatus}
                                         openAssignDialog={openAssignDialog} 
-                                        onDelete={id => deleteNotificationAction({ notificationId: id })} 
+                                        onDelete={handleDelete} 
                                         isSelected={selectedIds.has(notification.id)}
                                         onToggleSelection={toggleSelectRow}
                                     />
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan={9} className="h-48 text-center text-muted-foreground italic">No notifications found in this queue.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={7} className="h-48 text-center text-muted-foreground italic">No notifications found in this queue.</TableCell></TableRow>
                             )}
                         </TableBody>
                         </Table>
@@ -644,8 +794,8 @@ export default function AdminNotificationsPage() {
                     </div>
                     <DialogFooter className="gap-2">
                         <DialogClose asChild><Button variant="outline" className="font-bold uppercase text-xs">Close</Button></DialogClose>
-                        {viewingDetails?.relatedId && (
-                            <Button onClick={() => viewingDetails && handleView(viewingDetails)} className="font-black uppercase tracking-tighter text-xs">
+                        {viewingDetails && getNotificationTargetPath(viewingDetails) && (
+                            <Button onClick={() => viewingDetails && handleOpenRecord(viewingDetails)} className="font-black uppercase tracking-tighter text-xs">
                                 <ExternalLink className="mr-2 h-4 w-4" />Open Related Record
                             </Button>
                         )}
