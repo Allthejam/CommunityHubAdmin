@@ -36,6 +36,8 @@ import {
   PublicRegionalNetworkData
 } from '@/lib/actions/communityActions';
 import { isCommunityInRegionalNetwork, getCentroidFromGeoJson } from '@/lib/utils/geoUtils';
+import { useFirestore, useUser } from '@/firebase';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -71,6 +73,8 @@ type FilterType = 'all' | 'community' | 'regional';
 
 export default function CommunityMapPage() {
   const { toast } = useToast();
+  const db = useFirestore();
+  const { user } = useUser();
   const [boundaries, setBoundaries] = React.useState<any[]>([]);
   const [regionalNetworks, setRegionalNetworks] = React.useState<PublicRegionalNetworkData[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -90,6 +94,127 @@ export default function CommunityMapPage() {
   const fetchAllData = React.useCallback(async () => {
     setLoading(true);
     try {
+      if (db) {
+        try {
+          const [communitiesSnapshot, locationsSnapshot, userSnap, regColSnap] = await Promise.all([
+            getDocs(collection(db, 'communities')),
+            getDocs(collection(db, 'locations')).catch(() => null),
+            getDocs(query(collection(db, 'users'), where('accountType', '==', 'regional'))).catch(() => null),
+            getDocs(collection(db, 'regional_networks')).catch(() => null),
+          ]);
+
+          const clientBoundaries: any[] = [];
+          const seenCommIds = new Set<string>();
+
+          communitiesSnapshot.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const rawBoundary = data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+            if (rawBoundary) {
+              const boundaryStr = typeof rawBoundary === 'string'
+                ? rawBoundary
+                : (typeof rawBoundary === 'object' ? JSON.stringify(rawBoundary) : '');
+              if (boundaryStr && !seenCommIds.has(docSnap.id)) {
+                seenCommIds.add(docSnap.id);
+                clientBoundaries.push({
+                  id: docSnap.id,
+                  name: data.name || data.communityName || 'Community',
+                  boundary: boundaryStr,
+                  isLocked: Boolean(data.isLocked),
+                  status: data.status || 'active',
+                  region: data.region || data.state || '',
+                });
+              }
+            }
+          });
+
+          if (locationsSnapshot) {
+            locationsSnapshot.docs.forEach(docSnap => {
+              const data = docSnap.data();
+              const rawBoundary = data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+              if (rawBoundary && !seenCommIds.has(docSnap.id)) {
+                const boundaryStr = typeof rawBoundary === 'string'
+                  ? rawBoundary
+                  : (typeof rawBoundary === 'object' ? JSON.stringify(rawBoundary) : '');
+                if (boundaryStr) {
+                  seenCommIds.add(docSnap.id);
+                  clientBoundaries.push({
+                    id: docSnap.id,
+                    name: data.name || data.communityName || 'Location',
+                    boundary: boundaryStr,
+                    isLocked: Boolean(data.isLocked),
+                    status: data.status || 'active',
+                    region: data.region || data.state || '',
+                  });
+                }
+              }
+            });
+          }
+
+          const clientNetworks: PublicRegionalNetworkData[] = [];
+          const seenRegIds = new Set<string>();
+
+          if (userSnap) {
+            userSnap.docs.forEach(docSnap => {
+              const data = docSnap.data();
+              const rawBoundary = data.regionalBoundary || data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+              if (rawBoundary && !seenRegIds.has(docSnap.id)) {
+                const boundaryStr = typeof rawBoundary === 'string'
+                  ? rawBoundary
+                  : (typeof rawBoundary === 'object' ? JSON.stringify(rawBoundary) : '');
+                if (boundaryStr) {
+                  seenRegIds.add(docSnap.id);
+                  clientNetworks.push({
+                    id: docSnap.id,
+                    name: data.organizationName || data.businessName || data.displayName || data.name || 'Regional Authority Network',
+                    region: data.region || data.state || '',
+                    state: data.state || '',
+                    country: data.country || 'United Kingdom',
+                    boundary: boundaryStr,
+                    isLocked: Boolean(data.isLocked),
+                    type: 'regional',
+                    organizationName: data.organizationName || data.businessName,
+                    contactEmail: data.email || data.contactEmail,
+                  });
+                }
+              }
+            });
+          }
+
+          if (regColSnap) {
+            regColSnap.docs.forEach(docSnap => {
+              const data = docSnap.data();
+              const rawBoundary = data.regionalBoundary || data.boundary || data.boundaries || data.geoBoundary || data.geoJson || data.geometry;
+              if (rawBoundary && !seenRegIds.has(docSnap.id)) {
+                const boundaryStr = typeof rawBoundary === 'string'
+                  ? rawBoundary
+                  : (typeof rawBoundary === 'object' ? JSON.stringify(rawBoundary) : '');
+                if (boundaryStr) {
+                  seenRegIds.add(docSnap.id);
+                  clientNetworks.push({
+                    id: docSnap.id,
+                    name: data.name || data.organizationName || 'Regional Authority',
+                    region: data.region || data.state || '',
+                    state: data.state || '',
+                    country: data.country || 'United Kingdom',
+                    boundary: boundaryStr,
+                    isLocked: Boolean(data.isLocked),
+                    type: 'regional',
+                    organizationName: data.organizationName,
+                    contactEmail: data.email || data.contactEmail,
+                  });
+                }
+              }
+            });
+          }
+
+          setBoundaries(clientBoundaries);
+          setRegionalNetworks(clientNetworks);
+          return;
+        } catch (clientErr) {
+          console.warn("Client Firestore map fetch failed, falling back to Server Actions:", clientErr);
+        }
+      }
+
       const [commResult, regResult] = await Promise.all([
         runGetAllBoundaries(),
         runGetAllRegionalNetworks()
@@ -110,7 +235,7 @@ export default function CommunityMapPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [db, toast]);
 
   React.useEffect(() => {
     fetchAllData();
@@ -189,24 +314,73 @@ export default function CommunityMapPage() {
     setIsSaving(true);
     try {
       const geoJsonString = JSON.stringify(tempBoundary.geometry);
-      let result;
-      if (selectedType === 'regional') {
-        result = await runSaveRegionalBoundary({ networkId: selectedId, geoJsonString });
-      } else {
-        result = await runSaveCommunityBoundary({ communityId: selectedId, geoJsonString });
+      let savedViaClient = false;
+
+      if (db) {
+        try {
+          if (selectedType === 'regional') {
+            const userRef = doc(db, 'users', selectedId);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+              await updateDoc(userRef, {
+                regionalBoundary: geoJsonString,
+                boundary: geoJsonString,
+                updatedAt: serverTimestamp(),
+              });
+            } else {
+              await setDoc(doc(db, 'regional_networks', selectedId), {
+                boundary: geoJsonString,
+                regionalBoundary: geoJsonString,
+                updatedAt: serverTimestamp(),
+              }, { merge: true });
+            }
+          } else {
+            await updateDoc(doc(db, 'communities', selectedId), {
+              boundary: geoJsonString,
+              updatedAt: serverTimestamp(),
+            });
+          }
+
+          await addDoc(collection(db, 'audit_log'), {
+            adminId: user?.uid || 'system_admin',
+            adminName: user?.displayName || user?.email || 'Platform Admin',
+            action: `${selectedType}_boundary_updated`,
+            category: 'Communities & Hubs',
+            details: `Updated cartographic boundary for ${selectedType === 'regional' ? 'Regional Network' : 'Community'} "${selectedItem?.name || selectedId}".`,
+            targetObject: {
+              id: selectedId,
+              name: selectedItem?.name || selectedId,
+              type: selectedType === 'regional' ? 'Regional Network' : 'Community Hub',
+            },
+            timestamp: serverTimestamp(),
+          }).catch(() => {});
+
+          savedViaClient = true;
+        } catch (clientSaveErr) {
+          console.warn("Client boundary save failed, falling back to Server Action:", clientSaveErr);
+        }
       }
 
-      if (result.success) {
-        toast({ 
-          title: "Boundary Overwritten", 
-          description: `${selectedType === 'regional' ? 'Regional Network' : 'Community'} jurisdiction has been updated.` 
-        });
-        setIsEditMode(false);
-        setTempBoundary(null);
-        fetchAllData();
-      } else {
-        toast({ title: "Error", description: result.error, variant: "destructive" });
+      if (!savedViaClient) {
+        let result;
+        if (selectedType === 'regional') {
+          result = await runSaveRegionalBoundary({ networkId: selectedId, geoJsonString });
+        } else {
+          result = await runSaveCommunityBoundary({ communityId: selectedId, geoJsonString });
+        }
+        if (!result.success) {
+          toast({ title: "Error", description: result.error, variant: "destructive" });
+          return;
+        }
       }
+
+      toast({ 
+        title: "Boundary Overwritten", 
+        description: `${selectedType === 'regional' ? 'Regional Network' : 'Community'} jurisdiction has been updated.` 
+      });
+      setIsEditMode(false);
+      setTempBoundary(null);
+      fetchAllData();
     } catch (error) {
       toast({ title: "Error", description: "Could not save boundary changes.", variant: "destructive" });
     } finally {
@@ -219,22 +393,60 @@ export default function CommunityMapPage() {
     const newLockState = !selectedItem.isLocked;
     setIsSaving(true);
     try {
-      let result;
-      if (selectedType === 'regional') {
-        result = await runToggleRegionalLock({ networkId: selectedId, isLocked: newLockState });
-      } else {
-        result = await runToggleCommunityLock({ communityId: selectedId, isLocked: newLockState });
+      let savedViaClient = false;
+
+      if (db) {
+        try {
+          if (selectedType === 'regional') {
+            const userRef = doc(db, 'users', selectedId);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+              await updateDoc(userRef, { isLocked: newLockState, updatedAt: serverTimestamp() });
+            } else {
+              await setDoc(doc(db, 'regional_networks', selectedId), { isLocked: newLockState, updatedAt: serverTimestamp() }, { merge: true });
+            }
+          } else {
+            await updateDoc(doc(db, 'communities', selectedId), { isLocked: newLockState, updatedAt: serverTimestamp() });
+          }
+
+          await addDoc(collection(db, 'audit_log'), {
+            adminId: user?.uid || 'system_admin',
+            adminName: user?.displayName || user?.email || 'Platform Admin',
+            action: `${selectedType}_boundary_${newLockState ? 'locked' : 'unlocked'}`,
+            category: 'Communities & Hubs',
+            details: `${newLockState ? 'Locked' : 'Unlocked'} jurisdiction boundary for ${selectedType === 'regional' ? 'Regional Network' : 'Community'} "${selectedItem?.name || selectedId}".`,
+            targetObject: {
+              id: selectedId,
+              name: selectedItem?.name || selectedId,
+              type: selectedType === 'regional' ? 'Regional Network' : 'Community Hub',
+            },
+            timestamp: serverTimestamp(),
+          }).catch(() => {});
+
+          savedViaClient = true;
+        } catch (clientLockErr) {
+          console.warn("Client boundary lock toggle failed, falling back to Server Action:", clientLockErr);
+        }
       }
 
-      if (result.success) {
-        toast({ 
-          title: newLockState ? "Jurisdiction Locked" : "Jurisdiction Unlocked", 
-          description: newLockState ? "Admins/Leaders cannot modify this boundary." : "Jurisdiction boundary is now editable." 
-        });
-        fetchAllData();
-      } else {
-        toast({ title: "Error", description: result.error, variant: "destructive" });
+      if (!savedViaClient) {
+        let result;
+        if (selectedType === 'regional') {
+          result = await runToggleRegionalLock({ networkId: selectedId, isLocked: newLockState });
+        } else {
+          result = await runToggleCommunityLock({ communityId: selectedId, isLocked: newLockState });
+        }
+        if (!result.success) {
+          toast({ title: "Error", description: result.error, variant: "destructive" });
+          return;
+        }
       }
+
+      toast({ 
+        title: newLockState ? "Jurisdiction Locked" : "Jurisdiction Unlocked", 
+        description: newLockState ? "Admins/Leaders cannot modify this boundary." : "Jurisdiction boundary is now editable." 
+      });
+      fetchAllData();
     } catch (error) {
       toast({ title: "Error", description: "Could not update lock status.", variant: "destructive" });
     } finally {
