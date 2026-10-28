@@ -17,11 +17,29 @@ type Advert = {
   shortDescription: string;
   fullDescription: string;
   image: string;
-  link: string;
+  link?: string;
+  websiteLink?: string;
+  websiteUrl?: string;
+  url?: string;
+  primaryLinkType?: 'website' | 'email' | 'profile';
+  emailAddress?: string;
   type: 'featured' | 'partner';
   status: 'Active';
   targetCategories?: string[];
 };
+
+function getAdvertUrl(advert: Advert | any): string | null {
+  if (advert.primaryLinkType === 'email' && advert.emailAddress) {
+    return `mailto:${advert.emailAddress}`;
+  }
+  const raw = advert.websiteLink || advert.link || advert.websiteUrl || advert.url || '';
+  if (!raw || typeof raw !== 'string' || raw.trim() === '' || raw.trim() === '#') return null;
+  const trimmed = raw.trim();
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
 
 export function NationalAdvertisers() {
     const { user } = useUser();
@@ -113,11 +131,24 @@ export function NationalAdvertisers() {
                         </ScrollArea>
                     </DialogContent>
                 </Dialog>
-                <Button asChild size="sm" className="flex-1">
-                    <Link href={randomAdvert.link || '#'} target="_blank">
-                        <ExternalLink className="mr-2 h-4 w-4" /> Visit Site
-                    </Link>
-                </Button>
+                {(() => {
+                    const targetUrl = getAdvertUrl(randomAdvert);
+                    const isEmail = randomAdvert.primaryLinkType === 'email';
+                    if (!targetUrl) {
+                        return (
+                            <Button variant="outline" size="sm" disabled className="flex-1 opacity-50">
+                                <ExternalLink className="mr-2 h-4 w-4" /> Visit Site
+                            </Button>
+                        );
+                    }
+                    return (
+                        <Button asChild size="sm" className="flex-1">
+                            <a href={targetUrl} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" /> {isEmail ? 'Contact Us' : 'Visit Site'}
+                            </a>
+                        </Button>
+                    );
+                })()}
             </CardFooter>
         </Card>
     );

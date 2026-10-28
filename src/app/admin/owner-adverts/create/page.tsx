@@ -165,6 +165,7 @@ const CreateAdvertPageContent = () => {
             fullDescription: fullDescription,
             primaryLinkType: primaryLinkType,
             websiteLink: websiteLink,
+            link: websiteLink,
             emailAddress: emailAddress,
             image: adImage,
         };
@@ -200,6 +201,7 @@ const CreateAdvertPageContent = () => {
             fullDescription: fullDescription,
             primaryLinkType: primaryLinkType,
             websiteLink: websiteLink,
+            link: websiteLink,
             emailAddress: emailAddress,
             image: adImage,
         };

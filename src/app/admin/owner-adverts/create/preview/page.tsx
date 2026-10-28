@@ -87,16 +87,20 @@ const FeaturedAdPreviewCard = ({
 
                         {linkType === 'website' && linkValue && (
                             <Button asChild variant="outline" className="font-bold text-xs uppercase border-2">
-                                <Link href={linkValue} target="_blank">
+                                <a 
+                                    href={/^(https?:\/\/)/i.test(linkValue.trim()) ? linkValue.trim() : `https://${linkValue.trim()}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                >
                                     <ExternalLink className="mr-1.5 h-4 w-4 text-amber-500" /> Visit Site
-                                </Link>
+                                </a>
                             </Button>
                         )}
                         {linkType === 'email' && linkValue && (
                             <Button asChild variant="outline" className="font-bold text-xs uppercase border-2">
-                                <Link href={`mailto:${linkValue}`}>
+                                <a href={`mailto:${linkValue.trim()}`}>
                                     <Mail className="mr-1.5 h-4 w-4 text-blue-500" /> Contact Us
-                                </Link>
+                                </a>
                             </Button>
                         )}
                         {linkType === 'profile' && (
@@ -172,16 +176,20 @@ const PartnerAdPreviewCard = ({
                 </Dialog>
                 {linkType === 'website' && linkValue && (
                     <Button asChild variant="outline" size="sm" className="w-full font-bold text-xs uppercase border-2">
-                        <Link href={linkValue} target="_blank">
+                        <a 
+                            href={/^(https?:\/\/)/i.test(linkValue.trim()) ? linkValue.trim() : `https://${linkValue.trim()}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                        >
                             <ExternalLink className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> Visit Website
-                        </Link>
+                        </a>
                     </Button>
                 )}
                 {linkType === 'email' && linkValue && (
                     <Button asChild variant="outline" size="sm" className="w-full font-bold text-xs uppercase border-2">
-                        <Link href={`mailto:${linkValue}`}>
+                        <a href={`mailto:${linkValue.trim()}`}>
                             <Mail className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> Send Email
-                        </Link>
+                        </a>
                     </Button>
                 )}
             </CardFooter>
@@ -269,6 +277,7 @@ const PreviewPageContent = () => {
             try {
                 const payload: any = {
                     ...draftData,
+                    link: draftData.websiteLink || '',
                     ownerId: user.uid,
                     status: 'Draft',
                     totalCost: 0,

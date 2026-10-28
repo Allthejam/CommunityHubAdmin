@@ -17,6 +17,11 @@ type PartnerAd = {
   headline: string;
   image?: string;
   link?: string;
+  websiteLink?: string;
+  websiteUrl?: string;
+  url?: string;
+  primaryLinkType?: 'website' | 'email' | 'profile';
+  emailAddress?: string;
   fullDescription?: string;
   description?: string; // for mock data
   logo?: { imageUrl: string; imageHint: string; }; // for mock data
@@ -27,6 +32,19 @@ type PartnerAd = {
   type: 'featured' | 'partner';
   targetCategories?: string[];
 };
+
+function getPartnerUrl(partner: PartnerAd | any): string | null {
+  if (partner.primaryLinkType === 'email' && partner.emailAddress) {
+    return `mailto:${partner.emailAddress}`;
+  }
+  const raw = partner.websiteLink || partner.link || partner.websiteUrl || partner.url || '';
+  if (!raw || typeof raw !== 'string' || raw.trim() === '' || raw.trim() === '#') return null;
+  const trimmed = raw.trim();
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
 
 export function ValuedPartners() {
     const { user, isUserLoading } = useUser();
@@ -149,12 +167,26 @@ export function ValuedPartners() {
                                 </div>
                                 </ScrollArea>
                                 <DialogFooter>
-                                    <Button asChild variant="outline">
-                                        <Link href={partner.link || '#'} target="_blank">
-                                            <ExternalLink className="mr-2 h-4 w-4" />
-                                            Visit Site
-                                        </Link>
-                                    </Button>
+                                    {(() => {
+                                        const partnerUrl = getPartnerUrl(partner);
+                                        const isEmail = partner.primaryLinkType === 'email';
+                                        if (!partnerUrl) {
+                                            return (
+                                                <Button variant="outline" disabled className="opacity-50">
+                                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                                    Visit Site
+                                                </Button>
+                                            );
+                                        }
+                                        return (
+                                            <Button asChild variant="outline">
+                                                <a href={partnerUrl} target="_blank" rel="noopener noreferrer">
+                                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                                    {isEmail ? 'Contact Us' : 'Visit Site'}
+                                                </a>
+                                            </Button>
+                                        );
+                                    })()}
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
