@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { saveAdvertAsDraft } from "@/lib/actions/advertActions";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { doc } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -203,6 +203,34 @@ const CreateAdvertPageContent = () => {
             emailAddress: emailAddress,
             image: adImage,
         };
+
+        if (db) {
+            try {
+                const payload: any = {
+                    ...adData,
+                    ownerId: user.uid,
+                    status: 'Draft',
+                    totalCost: 0,
+                    updatedAt: serverTimestamp(),
+                };
+                let docId = advertId;
+                if (docId) {
+                    await updateDoc(doc(db, 'adverts', docId), payload);
+                } else {
+                    payload.createdAt = serverTimestamp();
+                    const docRef = await addDoc(collection(db, 'adverts'), payload);
+                    docId = docRef.id;
+                }
+
+                toast({ title: advertId ? "Changes Saved" : "Draft Saved", description: "Your advert draft has been safely stored." });
+                sessionStorage.removeItem('advertPreviewData');
+                router.push(backLink);
+                setIsSavingDraft(false);
+                return;
+            } catch (clientErr: any) {
+                console.warn('Direct client save draft failed, attempting server action fallback:', clientErr);
+            }
+        }
 
         const result = await saveAdvertAsDraft({ userId: user.uid, advertData: adData });
 

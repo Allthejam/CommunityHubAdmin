@@ -24,7 +24,7 @@ import {
 import { format, isPast, isFuture } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
-import { collection, query, where, doc } from "firebase/firestore";
+import { collection, query, where, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -177,6 +177,35 @@ export default function OwnerAdvertsPage() {
     }, [adverts, searchQuery, statusFilter, typeFilter]);
 
     const handleUpdateStatus = async (id: string, status: AdvertStatus) => {
+        if (firestore) {
+            try {
+                await updateDoc(doc(firestore, "adverts", id), {
+                    status,
+                    updatedAt: serverTimestamp()
+                });
+                if (user) {
+                    await addDoc(collection(firestore, "audit_log"), {
+                        adminId: user.uid,
+                        adminName: user.displayName || user.email || "Platform Administration",
+                        adminEmail: user.email || "",
+                        action: `advert_status_${status.toLowerCase().replace(/\s+/g, '_')}`,
+                        category: "Financials & Commerce",
+                        details: `Updated advert campaign status to "${status}"`,
+                        targetObject: {
+                            id,
+                            name: "Advert Campaign",
+                            type: "Advert Campaign"
+                        },
+                        metadata: { advertId: id, status, scope: "platform" },
+                        timestamp: serverTimestamp()
+                    }).catch(() => {});
+                }
+                toast({ title: "Status Updated", description: `Campaign has been marked as ${status}.` });
+                return;
+            } catch (clientErr: any) {
+                console.warn("Client status update failed, falling back to server action:", clientErr);
+            }
+        }
         const result = await updateAdvertStatusAction({ advertId: id, status });
         if (result.success) {
             toast({ title: "Status Updated", description: `Campaign has been marked as ${status}.` });
@@ -187,6 +216,31 @@ export default function OwnerAdvertsPage() {
     
     const handleDelete = async (id: string, title?: string) => {
         if (window.confirm(`Are you sure you want to permanently delete the campaign "${title || id}"?`)) {
+            if (firestore) {
+                try {
+                    await deleteDoc(doc(firestore, "adverts", id));
+                    if (user) {
+                        await addDoc(collection(firestore, "audit_log"), {
+                            adminId: user.uid,
+                            adminName: user.displayName || user.email || "Platform Administration",
+                            adminEmail: user.email || "",
+                            action: "advert_campaign_deleted",
+                            category: "Financials & Commerce",
+                            details: `Deleted advert campaign "${title || id}" (Scope: platform)`,
+                            targetObject: {
+                                id,
+                                name: title || "Advert Campaign",
+                                type: "Advert Campaign"
+                            },
+                            timestamp: serverTimestamp()
+                        }).catch(() => {});
+                    }
+                    toast({ title: "Campaign Deleted", description: "The advert campaign has been removed." });
+                    return;
+                } catch (clientErr: any) {
+                    console.warn("Client delete failed, falling back to server action:", clientErr);
+                }
+            }
             const result = await deleteAdvertAction({ advertId: id });
             if (result.success) {
                 toast({ title: "Campaign Deleted", description: "The advert campaign has been removed." });

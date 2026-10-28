@@ -40,7 +40,7 @@ import { useUser, useDoc, useMemoFirebase, useFirestore } from "@/firebase";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { saveAdvertAsDraft, submitAdvertForApprovalAction } from "@/lib/actions/advertActions";
 import { Badge } from "@/components/ui/badge";
-import { doc } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -182,6 +182,86 @@ const TargetingAdvertPageContent = () => {
 
         setIsSubmitting(true);
         const campaignData = getCampaignData();
+
+        // 1. Try client-side Firestore write first (avoids server action App Hosting IAM permission error)
+        if (db) {
+            try {
+                const startDate = dateRange.from || new Date();
+                const isLiveNow = startDate <= new Date();
+                const initialStatus = isLiveNow ? 'Active' : 'Upcoming';
+
+                const advertPayload: any = {
+                    title: campaignData?.title || adData.headline || 'Untitled Campaign',
+                    headline: adData.headline || '',
+                    shortDescription: adData.shortDescription || '',
+                    fullDescription: adData.fullDescription || '',
+                    primaryLinkType: adData.primaryLinkType || 'website',
+                    websiteLink: adData.websiteLink || '',
+                    emailAddress: adData.emailAddress || '',
+                    image: adData.image || null,
+                    type: advertType || adData.type || 'featured',
+                    ownerId: user.uid,
+                    scope: 'platform',
+                    targetCategories: selectedCategories,
+                    targetCountries: selectedCountries.map(c => countries.find(country => country.value === c)?.label || c),
+                    targetGender,
+                    targetAgeRanges,
+                    campaignDurationMonths: campaignDuration,
+                    startDate: dateRange.from ? Timestamp.fromDate(dateRange.from) : Timestamp.now(),
+                    endDate: dateRange.to ? Timestamp.fromDate(dateRange.to) : Timestamp.now(),
+                    status: initialStatus,
+                    totalCost: 0,
+                    updatedAt: serverTimestamp(),
+                    submittedAt: serverTimestamp(),
+                };
+
+                let docId = advertId || adData.id;
+                if (docId) {
+                    await updateDoc(doc(db, 'adverts', docId), advertPayload);
+                } else {
+                    advertPayload.createdAt = serverTimestamp();
+                    const docRef = await addDoc(collection(db, 'adverts'), advertPayload);
+                    docId = docRef.id;
+                }
+
+                // Audit log directly
+                await addDoc(collection(db, 'audit_log'), {
+                    adminId: user.uid,
+                    adminName: user.displayName || user.email || 'Platform Owner',
+                    adminEmail: user.email || '',
+                    action: advertId ? 'advert_campaign_updated' : 'advert_campaign_published',
+                    category: 'Financials & Commerce',
+                    details: `Published owner platform campaign "${advertPayload.title}" (Status: ${initialStatus}, Scope: platform)`,
+                    targetObject: {
+                        id: docId,
+                        name: advertPayload.title,
+                        type: 'Advert Campaign'
+                    },
+                    metadata: {
+                        advertId: docId,
+                        type: advertPayload.type,
+                        scope: 'platform',
+                        status: initialStatus,
+                        categories: selectedCategories,
+                        gender: targetGender,
+                        ageRanges: targetAgeRanges,
+                        durationMonths: campaignDuration
+                    },
+                    timestamp: serverTimestamp()
+                }).catch((err) => console.warn('Could not write audit log:', err));
+
+                sessionStorage.removeItem('advertPreviewData');
+                toast({ 
+                    title: 'Campaign Live & Published! 🚀', 
+                    description: 'Your internal ad campaign is now broadcasting across Community Hub.' 
+                });
+                router.push('/admin/owner-adverts');
+                setIsSubmitting(false);
+                return;
+            } catch (clientErr: any) {
+                console.warn('Direct client publish failed, attempting server action fallback:', clientErr);
+            }
+        }
         
         const result = await submitAdvertForApprovalAction({
             userId: user.uid,
@@ -213,12 +293,58 @@ const TargetingAdvertPageContent = () => {
             return;
         }
         const campaignData = getCampaignData();
-        if (!campaignData) {
+        if (!campaignData && !adData) {
             toast({ title: "Error", description: "Advert data not found to save as draft.", variant: "destructive" });
             return;
         }
 
         setIsSavingDraft(true);
+
+        if (db) {
+            try {
+                const draftPayload: any = {
+                    title: campaignData?.title || adData?.headline || 'Untitled Draft',
+                    headline: adData?.headline || '',
+                    shortDescription: adData?.shortDescription || '',
+                    fullDescription: adData?.fullDescription || '',
+                    primaryLinkType: adData?.primaryLinkType || 'website',
+                    websiteLink: adData?.websiteLink || '',
+                    emailAddress: adData?.emailAddress || '',
+                    image: adData?.image || null,
+                    type: advertType || adData?.type || 'featured',
+                    ownerId: user.uid,
+                    scope: 'platform',
+                    targetCategories: selectedCategories,
+                    targetCountries: selectedCountries.map(c => countries.find(country => country.value === c)?.label || c),
+                    targetGender,
+                    targetAgeRanges,
+                    campaignDurationMonths: campaignDuration,
+                    status: 'Draft',
+                    totalCost: 0,
+                    updatedAt: serverTimestamp(),
+                };
+                if (dateRange.from) draftPayload.startDate = Timestamp.fromDate(dateRange.from);
+                if (dateRange.to) draftPayload.endDate = Timestamp.fromDate(dateRange.to);
+
+                let docId = advertId || adData?.id;
+                if (docId) {
+                    await updateDoc(doc(db, 'adverts', docId), draftPayload);
+                } else {
+                    draftPayload.createdAt = serverTimestamp();
+                    const docRef = await addDoc(collection(db, 'adverts'), draftPayload);
+                    docId = docRef.id;
+                }
+
+                toast({ title: "Draft Saved", description: "Your campaign progress has been safely stored." });
+                sessionStorage.removeItem('advertPreviewData');
+                router.push("/admin/owner-adverts");
+                setIsSavingDraft(false);
+                return;
+            } catch (clientErr: any) {
+                console.warn('Direct client save draft failed, attempting server action fallback:', clientErr);
+            }
+        }
+
         const result = await saveAdvertAsDraft({ userId: user.uid, advertData: { id: advertId, ...campaignData } });
 
         if (result.success) {

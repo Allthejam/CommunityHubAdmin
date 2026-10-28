@@ -26,7 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { saveAdvertAsDraft } from "@/lib/actions/advertActions";
-import { useUser } from "@/firebase";
+import { useUser, useFirestore } from "@/firebase";
+import { collection, doc, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 
 type AdData = {
@@ -192,6 +193,7 @@ const PreviewPageContent = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useUser();
+    const db = useFirestore();
     const advertType = searchParams.get('type') || 'featured';
     const isOwnerAd = searchParams.get('owner') === 'true';
     const advertId = searchParams.get('id');
@@ -250,18 +252,44 @@ const PreviewPageContent = () => {
 
         setIsSavingDraft(true);
         const draftData = {
-            id: adData.id,
-            type: adData.type,
+            id: adData.id || advertId,
+            type: adData.type || advertType,
             scope: 'platform',
-            title: adData.headline,
-            headline: adData.headline,
-            shortDescription: adData.shortDescription,
-            fullDescription: adData.fullDescription,
-            primaryLinkType: adData.primaryLinkType,
-            websiteLink: adData.websiteLink,
-            emailAddress: adData.emailAddress,
-            image: adData.image,
+            title: adData.headline || 'Untitled Draft',
+            headline: adData.headline || '',
+            shortDescription: adData.shortDescription || '',
+            fullDescription: adData.fullDescription || '',
+            primaryLinkType: adData.primaryLinkType || 'website',
+            websiteLink: adData.websiteLink || '',
+            emailAddress: adData.emailAddress || '',
+            image: adData.image || null,
         };
+
+        if (db) {
+            try {
+                const payload: any = {
+                    ...draftData,
+                    ownerId: user.uid,
+                    status: 'Draft',
+                    totalCost: 0,
+                    updatedAt: serverTimestamp(),
+                };
+                let docId = draftData.id;
+                if (docId) {
+                    await updateDoc(doc(db, 'adverts', docId), payload);
+                } else {
+                    payload.createdAt = serverTimestamp();
+                    const docRef = await addDoc(collection(db, 'adverts'), payload);
+                    docId = docRef.id;
+                }
+
+                toast({ title: "Draft Saved", description: "Your campaign progress has been safely stored." });
+                setIsSavingDraft(false);
+                return;
+            } catch (clientErr: any) {
+                console.warn('Direct client save draft failed, attempting server action fallback:', clientErr);
+            }
+        }
 
         const result = await saveAdvertAsDraft({ userId: user.uid, advertData: draftData });
 
