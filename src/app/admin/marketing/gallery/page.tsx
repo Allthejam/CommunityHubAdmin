@@ -22,9 +22,8 @@ import {
   Activity,
 } from "lucide-react";
 import Image from "next/image";
-import { useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase";
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, addDoc, doc, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -56,52 +55,91 @@ type GalleryImage = {
 };
 
 /**
- * Resizes and compresses an image file to a lightweight data URL fallback
- * ensuring it stays within Firestore document limits if storage direct upload is unavailable.
+ * Formats a clean, readable title from an asset's storage path or existing description
+ */
+function getDisplayDescription(image: GalleryImage): string {
+  if (image.description && image.description.trim() && image.description !== 'Auto-indexed from Storage') {
+    return image.description;
+  }
+  if (image.path) {
+    const filename = image.path.split('/').pop() || '';
+    const cleaned = filename
+      .replace(/^\d+[-_]/, '')
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[-_]/g, ' ')
+      .trim();
+    if (cleaned) {
+      return cleaned.replace(/\b\w/g, c => c.toUpperCase());
+    }
+  }
+  return image.description || 'Marketing Asset';
+}
+
+/**
+ * Resizes and compresses an image file to a lightweight data URL
+ * typically 50KB-180KB, ensuring instant upload and avoiding network/CORS issues.
  */
 async function compressImageToDataUrl(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = document.createElement('img');
+  return new Promise((resolve) => {
     const reader = new FileReader();
 
+    // Safety timeout in case browser canvas or decode stalls
+    const timeout = setTimeout(() => {
+      const fallbackReader = new FileReader();
+      fallbackReader.onload = () => resolve((fallbackReader.result as string) || '');
+      fallbackReader.onerror = () => resolve('');
+      fallbackReader.readAsDataURL(file);
+    }, 4000);
+
     reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        clearTimeout(timeout);
+        try {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            if (width / height > maxWidth / maxHeight) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        } catch {
+          resolve((e.target?.result as string) || '');
+        }
+      };
+
+      img.onerror = () => {
+        clearTimeout(timeout);
+        resolve((e.target?.result as string) || '');
+      };
+
       img.src = e.target?.result as string;
     };
-    reader.onerror = reject;
 
-    img.onload = () => {
-      let width = img.width;
-      let height = img.height;
-
-      if (width > maxWidth || height > maxHeight) {
-        if (width / height > maxWidth / maxHeight) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        } else {
-          width = Math.round((width * maxHeight) / height);
-          height = maxHeight;
-        }
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(reader.result as string);
-        return;
-      }
-
-      ctx.drawImage(img, 0, 0, width, height);
-      let dataUrl = canvas.toDataURL('image/webp', quality);
-      if (!dataUrl.startsWith('data:image/webp')) {
-        dataUrl = canvas.toDataURL('image/jpeg', quality);
-      }
-      resolve(dataUrl);
+    reader.onerror = () => {
+      clearTimeout(timeout);
+      resolve('');
     };
 
-    img.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
@@ -109,7 +147,6 @@ async function compressImageToDataUrl(file: File, maxWidth = 1200, maxHeight = 1
 export default function MarketingGalleryPage() {
   const { user, isUserLoading: authLoading } = useUser();
   const db = useFirestore();
-  const firebaseApp = useFirebaseApp();
   const { toast } = useToast();
 
   const [isUploading, setIsUploading] = React.useState(false);
@@ -144,58 +181,58 @@ export default function MarketingGalleryPage() {
 
     const fileArray = Array.from(files);
 
-    for (const file of fileArray) {
-        if (currentImageCount + uploadCount >= GALLERY_LIMIT) {
-            errors.push(`Platform Library limit of ${GALLERY_LIMIT} reached.`);
-            break; 
-        }
+    try {
+      for (const file of fileArray) {
+          if (currentImageCount + uploadCount >= GALLERY_LIMIT) {
+              errors.push(`Platform Library limit of ${GALLERY_LIMIT} reached.`);
+              break; 
+          }
 
-        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-            errors.push(`File "${file.name}" exceeds the ${MAX_FILE_SIZE_MB}MB limit.`);
-            continue;
-        }
+          if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+              errors.push(`File "${file.name}" exceeds the ${MAX_FILE_SIZE_MB}MB limit.`);
+              continue;
+          }
 
-        uploadCount++;
-        
-        try {
-            const cleanFileName = file.name.replace(/\s+/g, '_');
-            const storagePath = `gallery/${Date.now()}-${cleanFileName}`;
-            
-            let downloadUrl = "";
-            if (firebaseApp) {
-                try {
-                    const storage = getStorage(firebaseApp);
-                    const fileRef = storageRef(storage, storagePath);
-                    const uploadResult = await uploadBytes(fileRef, file);
-                    downloadUrl = await getDownloadURL(uploadResult.ref);
-                } catch (storageErr) {
-                    console.warn("Storage direct upload unavailable, falling back to compressed data URL:", storageErr);
-                }
-            }
+          uploadCount++;
+          
+          try {
+              const cleanFileName = file.name.replace(/\s+/g, '_');
+              const storagePath = `gallery/${Date.now()}-${cleanFileName}`;
+              
+              // Compress directly in client browser to a lightweight JPEG (~80-150KB)
+              const downloadUrl = await compressImageToDataUrl(file);
+              if (!downloadUrl) {
+                throw new Error("Could not process image file.");
+              }
 
-            // Fallback to client-compressed WebP/JPEG data URL if storage upload not available
-            if (!downloadUrl) {
-                downloadUrl = await compressImageToDataUrl(file);
-            }
+              const cleanTitle = file.name
+                .replace(/\.[^/.]+$/, "")
+                .replace(/[-_]/g, " ")
+                .trim()
+                .replace(/\b\w/g, c => c.toUpperCase());
 
-            // Save directly to the platform_marketing_gallery collection via client Firestore SDK
-            await addDoc(collection(db, 'platform_marketing_gallery'), {
-                url: downloadUrl,
-                path: storagePath,
-                createdBy: user.uid,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                description: file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
-                isImported: false,
-            });
+              // Save directly to the platform_marketing_gallery collection via client Firestore SDK
+              await addDoc(collection(db, 'platform_marketing_gallery'), {
+                  url: downloadUrl,
+                  path: storagePath,
+                  createdBy: user.uid,
+                  createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                  description: cleanTitle,
+                  isImported: false,
+              });
 
-        } catch (error: any) {
-            console.error("Upload error:", error);
-            errors.push(`Failed to deploy ${file.name}: ${error.message || 'Unknown error'}`);
-        }
+          } catch (error: any) {
+              console.error("Upload error:", error);
+              errors.push(`Failed to deploy ${file.name}: ${error.message || 'Unknown error'}`);
+          }
+      }
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+      }
     }
-
-    setIsUploading(false);
 
     if (errors.length > 0) {
         toast({
@@ -211,10 +248,6 @@ export default function MarketingGalleryPage() {
             description: `${uploadCount - errors.length} asset(s) added to the Shared Platform Gallery.`
         });
     }
-    
-    if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-    }
   };
   
   const handleDeleteImage = async () => {
@@ -224,17 +257,6 @@ export default function MarketingGalleryPage() {
     try {
         // Delete record directly from Firestore
         await deleteDoc(doc(db, 'platform_marketing_gallery', imageToDelete.id));
-
-        // Try deleting from Storage if possible
-        if (imageToDelete.path && firebaseApp) {
-            try {
-                const storage = getStorage(firebaseApp);
-                const fileRef = storageRef(storage, imageToDelete.path);
-                await deleteObject(fileRef);
-            } catch (storageErr) {
-                // Ignore storage deletion errors
-            }
-        }
 
         toast({ title: "Asset Removed", description: "The image has been removed from the shared platform repository." });
     } catch (error: any) {
@@ -384,7 +406,8 @@ export default function MarketingGalleryPage() {
                                     <div className="space-y-1.5">
                                         <div className="relative">
                                             <Input
-                                                defaultValue={image.description || ''}
+                                                key={image.id + '-' + (image.description || '')}
+                                                defaultValue={getDisplayDescription(image)}
                                                 onChange={(e) => debouncedDescriptionUpdate(image.id, e.target.value)}
                                                 placeholder="Asset description..."
                                                 className="h-8 text-[10px] font-bold border-0 bg-muted/50 focus-visible:ring-1 focus-visible:ring-primary shadow-none"
