@@ -145,29 +145,36 @@ const CopyToClipboardButton = ({ textToCopy, isHtml = false }: { textToCopy: str
 
 const audienceTypes = [
     "Personal User / Local Resident",
-    "Business Owner / Local Merchant",
+    "Daily Commuters, Drivers & Transit Users",
+    "Business Owner / Local Highstreet Merchant",
     "Community Leader / Hub Administrator",
-    "Potential Community Leader / Volunteer",
+    "Potential Community Leader / Active Volunteer",
     "Regional Authority / Multi-Hub Coordinator",
-    "Emergency Services & Civil Protection",
+    "Emergency Services, Police & Civil Protection",
     "Enterprise Partner / Corporate Sponsor",
     "National & Regional Advertiser",
-    "Community Groups & Non-Profits",
+    "Community Groups, Non-Profits & Charities",
+    "Tourists, Visitors & Staycationers",
 ];
 
 const featureTypes = [
     "General Platform & Community Ecosystem",
+    "Real-Time Weather Alerts & Meteorological Warnings",
+    "Live Traffic Delays, Roadworks & Travel Notifications",
     "Emergency Broadcast System (Local & Multi-Hub)",
-    "Emergency Response Plans & Muster Protocols",
+    "Emergency Preparedness Plans & Offline Muster Protocols",
     "Threat Matrix & Real-Time Risk Assessment",
-    "Regional Multi-Hub Network & Governance",
-    "Virtual Highstreet & Local Shopping",
-    "Community Leadership Opportunity",
-    "Forum, Chat & Neighborhood Discussions",
-    "Events, Festivals & What's On",
-    "News, Editorial & Community Reporting",
-    "Skills Directory & Emergency Volunteering",
-    "Interactive Community Maps & Safety Hubs",
+    "Regional Multi-Hub Network & Inter-Community Governance",
+    "Neighborhood Safety & Police Liaison Network",
+    "Local Courier & Rapid Community Delivery Network",
+    "Virtual Highstreet, Click-and-Collect & Local Commerce",
+    "Civic Petitions, Citizen Polls & Grassroots Democracy",
+    "Lost & Found Pet & Property Rapid Alert Grid",
+    "Community Leadership Opportunities & Civic Stewardship",
+    "Events, Festivals, Tourism & Local Staycations",
+    "News, Editorial & Grassroots Community Journalism",
+    "Skills Directory & Emergency Volunteer Mutual Aid",
+    "Interactive Jurisdictional Maps & Boundary Visualization",
 ];
 
 export default function MarketingPage() {
@@ -187,6 +194,7 @@ export default function MarketingPage() {
     
     const [audience, setAudience] = React.useState('Personal User / Local Resident');
     const [feature, setFeature] = React.useState('General Platform & Community Ecosystem');
+    const [customNotes, setCustomNotes] = React.useState('');
 
     const db = useFirestore();
     const campaignsQuery = useMemoFirebase(() => db ? collection(db, 'marketing_campaigns') : null, [db]);
@@ -360,6 +368,7 @@ export default function MarketingPage() {
         setIsMainAppVisible(false);
         setAudience('Personal User / Local Resident');
         setFeature('General Platform & Community Ecosystem');
+        setCustomNotes('');
         formRef.current?.reset();
     };
 
@@ -435,7 +444,7 @@ export default function MarketingPage() {
                     <CardContent className="space-y-4 pt-2">
                          <div className="grid md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <Label htmlFor="audience">Target Audience</Label>
+                                <Label htmlFor="audience" className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Target Audience</Label>
                                 <Select value={audience} onValueChange={setAudience}>
                                     <SelectTrigger id="audience" className="h-11">
                                         <SelectValue placeholder="Select an audience..." />
@@ -449,7 +458,7 @@ export default function MarketingPage() {
                                 <input type="hidden" name="audience" value={audience} />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="feature">Feature focus</Label>
+                                <Label htmlFor="feature" className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Platform Feature Focus</Label>
                                 <Select value={feature} onValueChange={setFeature}>
                                     <SelectTrigger id="feature" className="h-11">
                                         <SelectValue placeholder="Select a feature..." />
@@ -462,6 +471,21 @@ export default function MarketingPage() {
                                 </Select>
                                 <input type="hidden" name="feature" value={feature} />
                             </div>
+                        </div>
+
+                        <div className="space-y-2 pt-1">
+                            <Label htmlFor="customNotes" className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                <span>Specific Campaign Angles, Local Situations or Custom Hazards (Optional)</span>
+                                <span className="text-[11px] font-normal text-muted-foreground lowercase">e.g. winter storm warnings, A9 detours, high street festival</span>
+                            </Label>
+                            <Input
+                                id="customNotes"
+                                name="customNotes"
+                                value={customNotes}
+                                onChange={(e) => setCustomNotes(e.target.value)}
+                                placeholder="Add specific weather warnings, road closures, local shop callouts, or seasonal campaign details to steer the AI..."
+                                className="h-11"
+                            />
                         </div>
                     </CardContent>
                     <CardFooterComponent>
