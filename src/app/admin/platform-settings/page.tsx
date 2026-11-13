@@ -111,6 +111,7 @@ const initialPermissions = {
     actionRecalculateHubStats: false,
     actionManageAppraisalsAndPay: false,
     actionManageShoppingControls: false,
+    isSeoManager: false,
 };
 
 type TeamMember = {
@@ -208,6 +209,7 @@ const permissionGroups = [
             { key: 'actionImpersonateUser', label: 'Impersonate Personal User' },
             { key: 'actionImpersonateLeader', label: 'Impersonate Community Leader' },
             { key: 'actionManageShoppingControls', label: 'Manage Featured Categories' },
+            { key: 'isSeoManager', label: 'SEO Manager (Edit Live Page SEO)' },
         ]
     }
 ];
