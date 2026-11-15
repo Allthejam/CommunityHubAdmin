@@ -496,13 +496,13 @@ export default function AdminPricingPage() {
                                     </TableCell>
                                     <TableCell className="text-emerald-600 dark:text-emerald-400 font-semibold">
                                         100%
-                                        <span className="text-xs font-normal text-muted-foreground block">(minus 1.5% + 20p est. Stripe fee)</span>
+                                        <span className="text-xs font-normal text-muted-foreground block">(minus third-party Stripe fee only)</span>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">—</TableCell>
                                     <TableCell className="text-muted-foreground">—</TableCell>
                                     <TableCell className="text-xs">
-                                        <span className="font-semibold text-foreground">1.5% + 20p</span>
-                                        <span className="text-muted-foreground block">(covers Stripe fee; 0% markup)</span>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">0% (£0)</span>
+                                        <span className="text-muted-foreground block font-medium">Platform takes nothing (0% platform fee; only Stripe processing fees apply)</span>
                                     </TableCell>
                                     <TableCell className="text-xs">
                                         <Badge variant="secondary" className="font-normal text-[11px] leading-tight text-left">
