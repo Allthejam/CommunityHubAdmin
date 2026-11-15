@@ -38,8 +38,6 @@ import {
 import { useFirestore } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { 
-    getPricingPlans, 
-    savePricingPlan, 
     type Plan, 
     type AdvertiserPlan, 
     type StorefrontPlan,
@@ -47,8 +45,10 @@ import {
     DEFAULT_STOREFRONT_PLAN,
     DEFAULT_ENTERPRISE_PLAN,
     DEFAULT_ADVERTISER_PLAN,
-} from "@/lib/actions/pricingActions";
+} from "@/lib/types/pricing";
 import { Skeleton } from "@/components/ui/skeleton";
+
+export const dynamic = 'force-dynamic';
 
 
 const PlanFeature = ({ icon, children }: { icon: React.ReactNode, children: React.ReactNode }) => (
@@ -134,7 +134,7 @@ export default function AdminPricingPage() {
         const fetchPlans = async () => {
             setIsLoading(true);
 
-            // 1. Try client Firestore SDK first (direct, authenticated, bypasses server actions)
+            // Fetch directly via client Firestore SDK
             if (db) {
                 try {
                     const [bSnap, sSnap, eSnap, aSnap] = await Promise.all([
@@ -149,26 +149,15 @@ export default function AdminPricingPage() {
                         if (sSnap.exists()) setStorefrontPlan({ ...DEFAULT_STOREFRONT_PLAN, ...(sSnap.data() as StorefrontPlan) });
                         if (eSnap.exists()) setEnterprisePlan({ ...DEFAULT_ENTERPRISE_PLAN, ...(eSnap.data() as Plan) });
                         if (aSnap.exists()) setAdvertiserPlan({ ...DEFAULT_ADVERTISER_PLAN, ...(aSnap.data() as AdvertiserPlan) });
-                        setIsLoading(false);
-                        return;
                     }
                 } catch (clientErr) {
-                    console.warn("Client Firestore fetch failed, trying server action:", clientErr);
+                    console.warn("Client Firestore fetch error:", clientErr);
+                } finally {
+                    if (isMounted) {
+                        setIsLoading(false);
+                    }
                 }
-            }
-
-            // 2. Fallback to server action
-            try {
-                const plans = await getPricingPlans();
-                if (isMounted) {
-                    if (plans.business) setBusinessPlan({ ...DEFAULT_BUSINESS_PLAN, ...plans.business });
-                    if (plans.storefront) setStorefrontPlan({ ...DEFAULT_STOREFRONT_PLAN, ...plans.storefront });
-                    if (plans.enterprise) setEnterprisePlan({ ...DEFAULT_ENTERPRISE_PLAN, ...plans.enterprise });
-                    if (plans.advertiser) setAdvertiserPlan({ ...DEFAULT_ADVERTISER_PLAN, ...plans.advertiser });
-                }
-            } catch (err) {
-                console.error("Error fetching pricing plans:", err);
-            } finally {
+            } else {
                 if (isMounted) {
                     setIsLoading(false);
                 }
@@ -224,7 +213,7 @@ export default function AdminPricingPage() {
             return;
         }
 
-        // Try saving directly via client Firestore SDK first
+        // Save directly via client Firestore SDK
         if (db) {
             try {
                 await setDoc(doc(db, 'pricing_plans', planName), {
@@ -236,30 +225,24 @@ export default function AdminPricingPage() {
                     title: "Pricing Saved",
                     description: `The pricing for ${planName} has been updated successfully.`,
                 });
-                setSavingStates(prev => ({ ...prev, [planName]: false }));
-                return;
             } catch (clientSaveErr: any) {
-                console.warn("Client Firestore save failed, trying server action:", clientSaveErr);
+                console.error("Client Firestore save failed:", clientSaveErr);
+                toast({
+                    title: "Error",
+                    description: clientSaveErr.message || "Failed to save pricing plan.",
+                    variant: "destructive",
+                });
+            } finally {
+                setSavingStates(prev => ({ ...prev, [planName]: false }));
             }
-        }
-
-        // Fallback to server action
-        const result = await savePricingPlan(planName, dataToSave);
-
-        if (result.success) {
-             toast({
-                title: "Pricing Saved",
-                description: `The pricing for ${planName} has been updated.`,
-            });
         } else {
-             toast({
+            toast({
                 title: "Error",
-                description: result.error || "Failed to save pricing plan.",
+                description: "Database connection not ready.",
                 variant: "destructive",
             });
+            setSavingStates(prev => ({ ...prev, [planName]: false }));
         }
-       
-        setSavingStates(prev => ({ ...prev, [planName]: false }));
     };
 
     if (isLoading) {
