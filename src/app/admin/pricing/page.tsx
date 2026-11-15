@@ -16,6 +16,7 @@ import {
     Store,
     ArrowRightLeft,
     Info,
+    Receipt,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -541,19 +542,19 @@ export default function AdminPricingPage() {
                                         <div className="font-semibold text-foreground">Business / Enterprise Listing Subscriptions</div>
                                         <div className="text-xs font-mono text-muted-foreground">listing, enterprise</div>
                                     </TableCell>
-                                    <TableCell className="text-amber-600 dark:text-amber-400 font-medium">
-                                        0% automatic
-                                        <span className="text-xs text-muted-foreground block">(UI estimates 40%, see note below)</span>
+                                    <TableCell className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        70%
+                                        <span className="text-xs font-normal text-muted-foreground block">(default; or community revenueShare)</span>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">—</TableCell>
                                     <TableCell className="text-muted-foreground">—</TableCell>
                                     <TableCell className="text-xs">
-                                        <span className="font-semibold text-purple-600 dark:text-purple-400">100%</span>
-                                        <span className="text-muted-foreground block">(unless paid out separately)</span>
+                                        <span className="font-semibold text-purple-600 dark:text-purple-400">30%</span>
+                                        <span className="text-muted-foreground block">(out of which Stripe takes processing fee)</span>
                                     </TableCell>
                                     <TableCell className="text-xs">
-                                        <Badge variant="outline" className="font-normal text-[11px] text-muted-foreground leading-tight text-left">
-                                            Not split in webhook
+                                        <Badge variant="secondary" className="font-normal text-[11px] leading-tight text-left">
+                                            Webhook transfer on invoice.payment_succeeded
                                         </Badge>
                                     </TableCell>
                                 </TableRow>
@@ -573,8 +574,8 @@ export default function AdminPricingPage() {
                                         <span className="text-muted-foreground block">(minus proportional Stripe fee)</span>
                                     </TableCell>
                                     <TableCell className="text-xs">
-                                        <span className="font-semibold text-foreground">1.5% + 20p</span>
-                                        <span className="text-muted-foreground block">(covers Stripe fee; 0% markup)</span>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">0% markup</span>
+                                        <span className="text-muted-foreground block">(2.9% + 30p est. Stripe fee only)</span>
                                     </TableCell>
                                     <TableCell className="text-xs">
                                         <Badge variant="secondary" className="font-normal text-[11px] leading-tight text-left">
@@ -586,15 +587,75 @@ export default function AdminPricingPage() {
                         </Table>
                     </div>
 
-                    <Alert className="bg-primary/5 border-primary/20">
-                        <Info className="h-4 w-4 text-primary" />
-                        <AlertTitle className="text-xs font-black uppercase tracking-widest">
-                            Important Implementation Note: Listing Subscriptions vs. Financials Dashboard
-                        </AlertTitle>
-                        <AlertDescription className="text-xs leading-relaxed text-muted-foreground">
-                            In <code className="text-xs font-mono font-semibold text-foreground">financials/page.tsx</code>, the dashboard calculates an estimated <strong>40% community share</strong> (or <code className="text-xs font-mono text-foreground">communityData.revenueShare</code>) on listing subscriptions for leadership performance metrics. However, in the Stripe webhook layer, listing subscriptions currently route 100% to the platform account and are not automatically split unless distributed via manual payout.
-                        </AlertDescription>
-                    </Alert>
+                    {/* How Each One Works (Detailed Breakdown) */}
+                    <div className="space-y-4 pt-4 border-t">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            <Receipt className="h-4 w-4 text-primary" />
+                            How Each One Works (Calculation & Examples)
+                        </h4>
+                        
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {/* 1 - Event Till & QR Donations */}
+                            <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
+                                <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                                    <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center text-xs font-bold">1</div>
+                                    Event Till & QR Donations
+                                </div>
+                                <ul className="text-xs space-y-1.5 text-muted-foreground leading-relaxed">
+                                    <li>• <strong className="text-foreground">Formula:</strong> Uses <code className="text-[11px] font-mono bg-muted px-1 py-0.5 rounded">calculateEstimatedStripeFeePence (Math.round(amount * 0.015 + 20) = 1.5% + 20p)</code>.</li>
+                                    <li>• <strong className="text-foreground">Example on £10.00 donation:</strong> 35p stays on your platform account as the <code className="text-[11px] font-mono bg-muted px-1 py-0.5 rounded">application_fee_amount</code> to cover Stripe's UK card fee, and <strong>£9.65</strong> goes straight into the Community Leader's Stripe Express account.</li>
+                                    <li>• <strong className="text-foreground">Cash Sales:</strong> Logged on the Event Till have <strong>0p Stripe fee</strong> (100% stays in the community's cash tin, tracked in the audit ledger).</li>
+                                </ul>
+                            </div>
+
+                            {/* 2 - Storefront Subscriptions */}
+                            <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
+                                <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 flex items-center justify-center text-xs font-bold">2</div>
+                                    Storefront Subscriptions
+                                </div>
+                                <ul className="text-xs space-y-1.5 text-muted-foreground leading-relaxed">
+                                    <li>• <strong className="text-foreground">Split Rule:</strong> 10% Leader / 40% Courier / 50% Platform.</li>
+                                    <li>• <strong className="text-foreground">Example on £10.00 invoice:</strong>
+                                        <div className="mt-1 pl-2 space-y-0.5 border-l-2 border-primary/30">
+                                            <div>• <strong>£1.00 (10%)</strong> → Community Leader</div>
+                                            <div>• <strong>£4.00 (40%)</strong> → Community Courier</div>
+                                            <div>• <strong>£5.00 (50%)</strong> → You (Admin), out of which Stripe takes its fee.</div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            {/* 3 - Listing Subscriptions */}
+                            <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
+                                <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                                    <div className="h-6 w-6 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 flex items-center justify-center text-xs font-bold">3</div>
+                                    Listing Subscriptions (Business / Enterprise)
+                                </div>
+                                <ul className="text-xs space-y-1.5 text-muted-foreground leading-relaxed">
+                                    <li>• <strong className="text-foreground">Split Rule:</strong> Uses <code className="text-[11px] font-mono bg-muted px-1 py-0.5 rounded">communityData.revenueShare</code> if set, otherwise defaults to <strong>70% Leader / 30% Admin</strong>.</li>
+                                    <li>• <strong className="text-foreground">Example on £10.00 invoice at 70/30:</strong>
+                                        <div className="mt-1 pl-2 space-y-0.5 border-l-2 border-primary/30">
+                                            <div>• <strong>£7.00 (70%)</strong> → Community Leader</div>
+                                            <div>• <strong>£3.00 (30%)</strong> → You (Admin), out of which Stripe takes its processing fee.</div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            {/* 4 - Shopping Cart Checkout */}
+                            <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
+                                <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                                    <div className="h-6 w-6 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 flex items-center justify-center text-xs font-bold">4</div>
+                                    Shopping Cart Checkout
+                                </div>
+                                <ul className="text-xs space-y-1.5 text-muted-foreground leading-relaxed">
+                                    <li>• <strong className="text-foreground">Formula:</strong> Estimates total Stripe fee as <code className="text-[11px] font-mono bg-muted px-1 py-0.5 rounded">Math.round(totalAmount * 0.029 + 30)</code> (2.9% + 30p).</li>
+                                    <li>• <strong className="text-foreground">Distribution:</strong> Deducts fee proportionally from each Business's subtotal and the Courier's delivery fee, leaving <strong>0% markup</strong> on your platform account after Stripe's processing fee.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
         </div>
