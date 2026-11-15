@@ -1,6 +1,7 @@
 'use server';
 
 import { initializeAdminApp } from '@/firebase/admin-app';
+import { Timestamp } from 'firebase-admin/firestore';
 
 type ActionResponse = {
   success: boolean;
@@ -91,6 +92,15 @@ export async function sendEmail(params: EmailParams): Promise<ActionResponse> {
     
     const responseData = await response.json();
     console.log("Email sent successfully via Brevo. Message ID:", responseData.messageId);
+
+    // Update lastSentAt in Firestore platform_settings/brevo so inactivity tracking is always accurate
+    try {
+      const { firestore } = initializeAdminApp();
+      firestore.collection('platform_settings').doc('brevo').set({
+        lastSentAt: Timestamp.now(),
+      }, { merge: true }).catch(() => {});
+    } catch {}
+
     return { success: true };
 
   } catch (error: any) {
