@@ -22,7 +22,19 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { getPricingPlans, savePricingPlan, type Plan, type AdvertiserPlan, type StorefrontPlan } from "@/lib/actions/pricingActions";
+import { useFirestore } from "@/firebase";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { 
+    getPricingPlans, 
+    savePricingPlan, 
+    type Plan, 
+    type AdvertiserPlan, 
+    type StorefrontPlan,
+    DEFAULT_BUSINESS_PLAN,
+    DEFAULT_STOREFRONT_PLAN,
+    DEFAULT_ENTERPRISE_PLAN,
+    DEFAULT_ADVERTISER_PLAN,
+} from "@/lib/actions/pricingActions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -87,10 +99,11 @@ const PricingCardSkeleton = () => (
 
 
 export default function AdminPricingPage() {
-    const [businessPlan, setBusinessPlan] = useState<Plan | null>(null);
-    const [storefrontPlan, setStorefrontPlan] = useState<StorefrontPlan | null>(null);
-    const [enterprisePlan, setEnterprisePlan] = useState<Plan | null>(null);
-    const [advertiserPlan, setAdvertiserPlan] = useState<AdvertiserPlan | null>(null);
+    const db = useFirestore();
+    const [businessPlan, setBusinessPlan] = useState<Plan>(DEFAULT_BUSINESS_PLAN);
+    const [storefrontPlan, setStorefrontPlan] = useState<StorefrontPlan>(DEFAULT_STOREFRONT_PLAN);
+    const [enterprisePlan, setEnterprisePlan] = useState<Plan>(DEFAULT_ENTERPRISE_PLAN);
+    const [advertiserPlan, setAdvertiserPlan] = useState<AdvertiserPlan>(DEFAULT_ADVERTISER_PLAN);
     
     const [isLoading, setIsLoading] = useState(true);
     const [savingStates, setSavingStates] = useState({
@@ -103,17 +116,58 @@ export default function AdminPricingPage() {
     const { toast } = useToast();
     
     useEffect(() => {
+        let isMounted = true;
+
         const fetchPlans = async () => {
             setIsLoading(true);
-            const plans = await getPricingPlans();
-            if (plans.business) setBusinessPlan(plans.business);
-            if (plans.storefront) setStorefrontPlan(plans.storefront);
-            if (plans.enterprise) setEnterprisePlan(plans.enterprise);
-            if (plans.advertiser) setAdvertiserPlan(plans.advertiser);
-            setIsLoading(false);
+
+            // 1. Try client Firestore SDK first (direct, authenticated, bypasses server actions)
+            if (db) {
+                try {
+                    const [bSnap, sSnap, eSnap, aSnap] = await Promise.all([
+                        getDoc(doc(db, 'pricing_plans', 'business')),
+                        getDoc(doc(db, 'pricing_plans', 'storefront')),
+                        getDoc(doc(db, 'pricing_plans', 'enterprise')),
+                        getDoc(doc(db, 'pricing_plans', 'advertiser')),
+                    ]);
+
+                    if (isMounted) {
+                        if (bSnap.exists()) setBusinessPlan({ ...DEFAULT_BUSINESS_PLAN, ...(bSnap.data() as Plan) });
+                        if (sSnap.exists()) setStorefrontPlan({ ...DEFAULT_STOREFRONT_PLAN, ...(sSnap.data() as StorefrontPlan) });
+                        if (eSnap.exists()) setEnterprisePlan({ ...DEFAULT_ENTERPRISE_PLAN, ...(eSnap.data() as Plan) });
+                        if (aSnap.exists()) setAdvertiserPlan({ ...DEFAULT_ADVERTISER_PLAN, ...(aSnap.data() as AdvertiserPlan) });
+                        setIsLoading(false);
+                        return;
+                    }
+                } catch (clientErr) {
+                    console.warn("Client Firestore fetch failed, trying server action:", clientErr);
+                }
+            }
+
+            // 2. Fallback to server action
+            try {
+                const plans = await getPricingPlans();
+                if (isMounted) {
+                    if (plans.business) setBusinessPlan({ ...DEFAULT_BUSINESS_PLAN, ...plans.business });
+                    if (plans.storefront) setStorefrontPlan({ ...DEFAULT_STOREFRONT_PLAN, ...plans.storefront });
+                    if (plans.enterprise) setEnterprisePlan({ ...DEFAULT_ENTERPRISE_PLAN, ...plans.enterprise });
+                    if (plans.advertiser) setAdvertiserPlan({ ...DEFAULT_ADVERTISER_PLAN, ...plans.advertiser });
+                }
+            } catch (err) {
+                console.error("Error fetching pricing plans:", err);
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
         };
+
         fetchPlans();
-    }, []);
+
+        return () => {
+            isMounted = false;
+        };
+    }, [db]);
 
     const handleSave = async (planName: 'business' | 'storefront' | 'enterprise' | 'advertiser') => {
         setSavingStates(prev => ({ ...prev, [planName]: true }));
@@ -157,7 +211,26 @@ export default function AdminPricingPage() {
             return;
         }
 
+        // Try saving directly via client Firestore SDK first
+        if (db) {
+            try {
+                await setDoc(doc(db, 'pricing_plans', planName), {
+                    ...dataToSave,
+                    updatedAt: serverTimestamp(),
+                }, { merge: true });
 
+                toast({
+                    title: "Pricing Saved",
+                    description: `The pricing for ${planName} has been updated successfully.`,
+                });
+                setSavingStates(prev => ({ ...prev, [planName]: false }));
+                return;
+            } catch (clientSaveErr: any) {
+                console.warn("Client Firestore save failed, trying server action:", clientSaveErr);
+            }
+        }
+
+        // Fallback to server action
         const result = await savePricingPlan(planName, dataToSave);
 
         if (result.success) {
@@ -168,7 +241,7 @@ export default function AdminPricingPage() {
         } else {
              toast({
                 title: "Error",
-                description: result.error,
+                description: result.error || "Failed to save pricing plan.",
                 variant: "destructive",
             });
         }

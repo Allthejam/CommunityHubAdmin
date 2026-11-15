@@ -313,7 +313,7 @@ service cloud.firestore {
     }
 
     match /platform_reports/{reportId} { allow read, write: if isSignedIn(); }
-    match /pricing_plans/{planId} { allow read, write: if isAdmin(); }
+    match /pricing_plans/{planId} { allow read: if true; allow write: if isAdmin(); }
     match /platform_overview/{docId} { allow read, write: if isAdmin(); }
     match /platform_settings/{docId} { allow read, write: if isAdmin(); }
     match /legal_documents/{docId} { allow read: if true; allow write: if isAdmin(); }
