@@ -14,6 +14,8 @@ import {
     GalleryHorizontal,
     BadgeCheck,
     Store,
+    ArrowRightLeft,
+    Info,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,16 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { useFirestore } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { 
@@ -444,6 +456,147 @@ export default function AdminPricingPage() {
                     </div>
                 </PricingCard>
             </div>
+
+            {/* Payment Split & Revenue Distribution Breakdown */}
+            <Card className="border-2 shadow-sm">
+                <CardHeader className="bg-muted/10 border-b">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <ArrowRightLeft className="h-5 w-5 text-primary" />
+                                Payment Split & Automated Revenue Distribution
+                            </CardTitle>
+                            <CardDescription>
+                                Exact payment splits and transfer mechanisms currently implemented in the codebase.
+                            </CardDescription>
+                        </div>
+                        <Badge variant="outline" className="font-mono text-xs py-1 px-3 w-fit">
+                            Live Codebase Routing
+                        </Badge>
+                    </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-6">
+                    <div className="rounded-lg border overflow-hidden">
+                        <Table>
+                            <TableHeader className="bg-muted/40">
+                                <TableRow>
+                                    <TableHead className="font-bold text-foreground">Payment Type</TableHead>
+                                    <TableHead className="font-bold text-foreground">Community Leader</TableHead>
+                                    <TableHead className="font-bold text-foreground">Community Courier</TableHead>
+                                    <TableHead className="font-bold text-foreground">Business / Merchant</TableHead>
+                                    <TableHead className="font-bold text-foreground">Platform (You)</TableHead>
+                                    <TableHead className="font-bold text-foreground">How It Transfers</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-medium">
+                                        <div className="font-semibold text-foreground">Event Till / QR Donations</div>
+                                        <div className="text-xs font-mono text-muted-foreground">community_pos, community_donation</div>
+                                    </TableCell>
+                                    <TableCell className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        100%
+                                        <span className="text-xs font-normal text-muted-foreground block">(minus 1.5% + 20p est. Stripe fee)</span>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">—</TableCell>
+                                    <TableCell className="text-muted-foreground">—</TableCell>
+                                    <TableCell className="text-xs">
+                                        <span className="font-semibold text-foreground">1.5% + 20p</span>
+                                        <span className="text-muted-foreground block">(covers Stripe fee; 0% markup)</span>
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <Badge variant="secondary" className="font-normal text-[11px] leading-tight text-left">
+                                            Automatic Destination Charge (transfer_data.destination) at payment time
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+
+                                <TableRow>
+                                    <TableCell className="font-medium">
+                                        <div className="font-semibold text-foreground">Storefront Subscriptions</div>
+                                        <div className="text-xs font-mono text-muted-foreground">storefront, enterprise_storefront</div>
+                                    </TableCell>
+                                    <TableCell className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        10%
+                                        <span className="text-xs font-normal text-muted-foreground block">of amount_paid</span>
+                                    </TableCell>
+                                    <TableCell className="text-blue-600 dark:text-blue-400 font-semibold">
+                                        40%
+                                        <span className="text-xs font-normal text-muted-foreground block">of amount_paid</span>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">—</TableCell>
+                                    <TableCell className="text-xs">
+                                        <span className="font-semibold text-purple-600 dark:text-purple-400">50%</span>
+                                        <span className="text-muted-foreground block">(covers Stripe fees)</span>
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <Badge variant="secondary" className="font-normal text-[11px] leading-tight text-left">
+                                            Webhook transfer on invoice.payment_succeeded
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+
+                                <TableRow>
+                                    <TableCell className="font-medium">
+                                        <div className="font-semibold text-foreground">Business / Enterprise Listing Subscriptions</div>
+                                        <div className="text-xs font-mono text-muted-foreground">listing, enterprise</div>
+                                    </TableCell>
+                                    <TableCell className="text-amber-600 dark:text-amber-400 font-medium">
+                                        0% automatic
+                                        <span className="text-xs text-muted-foreground block">(UI estimates 40%, see note below)</span>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">—</TableCell>
+                                    <TableCell className="text-muted-foreground">—</TableCell>
+                                    <TableCell className="text-xs">
+                                        <span className="font-semibold text-purple-600 dark:text-purple-400">100%</span>
+                                        <span className="text-muted-foreground block">(unless paid out separately)</span>
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <Badge variant="outline" className="font-normal text-[11px] text-muted-foreground leading-tight text-left">
+                                            Not split in webhook
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+
+                                <TableRow>
+                                    <TableCell className="font-medium">
+                                        <div className="font-semibold text-foreground">Shopping Cart Checkout</div>
+                                        <div className="text-xs font-mono text-muted-foreground">cart_checkout</div>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">—</TableCell>
+                                    <TableCell className="text-blue-600 dark:text-blue-400 text-xs">
+                                        <span className="font-semibold">Delivery fee</span>
+                                        <span className="text-muted-foreground block">(minus proportional Stripe fee, if local_courier)</span>
+                                    </TableCell>
+                                    <TableCell className="text-foreground text-xs">
+                                        <span className="font-semibold">Item subtotal</span>
+                                        <span className="text-muted-foreground block">(minus proportional Stripe fee)</span>
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <span className="font-semibold text-foreground">1.5% + 20p</span>
+                                        <span className="text-muted-foreground block">(covers Stripe fee; 0% markup)</span>
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <Badge variant="secondary" className="font-normal text-[11px] leading-tight text-left">
+                                            Webhook transfer on checkout.session.completed
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <Alert className="bg-primary/5 border-primary/20">
+                        <Info className="h-4 w-4 text-primary" />
+                        <AlertTitle className="text-xs font-black uppercase tracking-widest">
+                            Important Implementation Note: Listing Subscriptions vs. Financials Dashboard
+                        </AlertTitle>
+                        <AlertDescription className="text-xs leading-relaxed text-muted-foreground">
+                            In <code className="text-xs font-mono font-semibold text-foreground">financials/page.tsx</code>, the dashboard calculates an estimated <strong>40% community share</strong> (or <code className="text-xs font-mono text-foreground">communityData.revenueShare</code>) on listing subscriptions for leadership performance metrics. However, in the Stripe webhook layer, listing subscriptions currently route 100% to the platform account and are not automatically split unless distributed via manual payout.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
         </div>
     );
 }
