@@ -145,6 +145,8 @@ const CopyToClipboardButton = ({ textToCopy, isHtml = false }: { textToCopy: str
 
 const audienceTypes = [
     "Personal User / Local Resident",
+    "Casual Gamers, Puzzle Lovers & Leisure Seekers",
+    "Families, Kids & Young Residents",
     "Daily Commuters, Drivers & Transit Users",
     "Business Owner / Local Highstreet Merchant",
     "Community Leader / Hub Administrator",
@@ -162,6 +164,7 @@ const audienceTypes = [
 
 const featureTypes = [
     "General Platform & Community Ecosystem",
+    "Time Waisters: Community Arcade & Classic Brain Games",
     "Community Leader POS, Event Till & QR Code Payments",
     "Payment Auditing, Live Till Tracking & Cash Reconciliation",
     "Transparent Revenue Share & 70% Council Treasury Funding",

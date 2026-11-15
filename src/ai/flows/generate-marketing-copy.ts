@@ -62,8 +62,10 @@ const marketingPrompt = ai.definePrompt({
   - Lost & Found Pet & Property Network: Real-time broadcast network with photo identification to quickly reunite families with lost pets, keys, and valuable belongings.
   - Community Leadership & Civic Stewardship: Empowering local champions to run hubs, manage moderation, and foster strong neighborhood bonds.
   - Forum, Events, Festivals & Tourism: Authentic local discussions, community calendars, grassroots reporting, verified local journalism, and stay-local tourism.
+  - Time Waisters Community Arcade & Brain Games: A rich suite of 21+ built-in instant browser games (Sudoku, Solitaire, Word Guess/Wordle, Snake, Minesweeper, Trivia, 2048, Checkers, Battleship, Town Hopper, UK Driver Rank, FreeCell, Connect Four, etc.) providing ad-free, family-friendly brain training, casual entertainment for commuters and transit riders, and community leisure without requiring downloads, sign-ups, or invasive tracking.
 
   Commercial Model & Positioning Guidelines:
+  - When targeting Casual Gamers, Commuters & Families: Emphasize instant, frictionless fun, 21+ games with zero downloads or pop-up ads, brain-sharpening daily puzzles, and a friendly community entertainment escape.
   - When targeting Community Leaders, Gala Committees & Treasurers: Emphasize zero-equipment cost (works on any phone/tablet), 0% platform fee on donations/events, immediate Stripe destination payouts, transparent audit ledgers, and the 70% recurring revenue share from business listings that directly funds parish and council projects.
   - When targeting Local Businesses & Merchants: Emphasize local wealth retention — unlike corporate social networks where 100% of ad spend vanishes, £14 of every £20 monthly listing goes directly into their own town's civic fund, improving footfall and funding community improvements.
   - When targeting Couriers & Delivery Partners: Emphasize the 40% share of storefront subscriptions and delivery earnings with 0% platform markup on checkout delivery fees.
@@ -178,8 +180,10 @@ Platform Capability Reference for Copy Inspiration:
 - Lost & Found Pet & Property Network: Real-time broadcast network with photo identification to quickly reunite families with lost pets, keys, and valuable belongings.
 - Community Leadership & Civic Stewardship: Empowering local champions to run hubs, manage moderation, and foster strong neighborhood bonds.
 - Forum, Events, Festivals & Tourism: Authentic local discussions, community calendars, grassroots reporting, verified local journalism, and stay-local tourism.
+- Time Waisters Community Arcade & Brain Games: A rich suite of 21+ built-in instant browser games (Sudoku, Solitaire, Word Guess/Wordle, Snake, Minesweeper, Trivia, 2048, Checkers, Battleship, Town Hopper, UK Driver Rank, FreeCell, Connect Four, etc.) providing ad-free, family-friendly brain training, casual entertainment for commuters and transit riders, and community leisure without requiring downloads, sign-ups, or invasive tracking.
 
 Commercial Model & Positioning Guidelines:
+- When targeting Casual Gamers, Commuters & Families: Emphasize instant, frictionless fun, 21+ games with zero downloads or pop-up ads, brain-sharpening daily puzzles, and a friendly community entertainment escape.
 - When targeting Community Leaders, Gala Committees & Treasurers: Emphasize zero-equipment cost (works on any phone/tablet), 0% platform fee on donations/events, immediate Stripe destination payouts, transparent audit ledgers, and the 70% recurring revenue share from business listings that directly funds parish and council projects.
 - When targeting Local Businesses & Merchants: Emphasize local wealth retention — unlike corporate social networks where 100% of ad spend vanishes, £14 of every £20 monthly listing goes directly into their own town's civic fund, improving footfall and funding community improvements.
 - When targeting Couriers & Delivery Partners: Emphasize the 40% share of storefront subscriptions and delivery earnings with 0% platform markup on checkout delivery fees.
