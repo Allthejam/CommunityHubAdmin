@@ -15,6 +15,7 @@ type ActionResponse = {
 };
 
 type CreatePlatformAnnouncementParams = {
+  announcementId?: string;
   userId: string;
   subject: string;
   message: string;
@@ -225,7 +226,13 @@ export async function createPlatformAnnouncementAction(
     if(params.startDate) announcementData.startDate = Timestamp.fromDate(new Date(params.startDate));
     if(params.endDate) announcementData.endDate = Timestamp.fromDate(new Date(params.endDate));
 
-    const newRef = await firestore.collection('announcements').add(announcementData);
+    let newRef: FirebaseFirestore.DocumentReference;
+    if (params.announcementId) {
+        newRef = firestore.collection('announcements').doc(params.announcementId);
+        await newRef.set(announcementData, { merge: true });
+    } else {
+        newRef = await firestore.collection('announcements').add(announcementData);
+    }
 
     // AUDIT TRAIL LOGGING (Logged immediately upon database persistence)
     try {
@@ -253,81 +260,106 @@ export async function createPlatformAnnouncementAction(
         console.warn("Could not log announcement audit trail:", auditErr);
     }
 
-    // AI MODERATION SCAN
-    await scanAndFlagAction({
-        text: `${params.subject} ${params.message}`,
-        contentType: "Platform Announcement",
-        authorId: userId,
-        authorName: params.sentBy,
-        contentId: newRef.id,
-        contentPath: newRef.path
-    });
+    // AI MODERATION SCAN (Non-blocking: ensure errors do not halt notification/email dispatch)
+    try {
+        await scanAndFlagAction({
+            text: `${params.subject} ${params.message}`,
+            contentType: "Platform Announcement",
+            authorId: userId,
+            authorName: params.sentBy,
+            contentId: newRef.id,
+            contentPath: newRef.path
+        });
+    } catch (modErr) {
+        console.warn("Announcement AI moderation scan notice:", modErr);
+    }
 
     if (params.status === 'Live') {
-        const recipientIds = await resolveRecipients(firestore, audience);
-        
-        if (recipientIds.length > 0) {
-            const priorityPrefix = params.type === 'Emergency' ? '🚨 EMERGENCY: ' : (params.severity === 'urgent' ? '⚠️ URGENT: ' : '');
-            const displaySubject = `${priorityPrefix}${params.subject}`;
+        try {
+            const recipientIds = await resolveRecipients(firestore, audience);
+            
+            if (recipientIds.length > 0) {
+                const priorityPrefix = params.type === 'Emergency' ? '🚨 EMERGENCY: ' : (params.severity === 'urgent' ? '⚠️ URGENT: ' : '');
+                const displaySubject = `${priorityPrefix}${params.subject}`;
 
-            await sendPushNotificationAction({
-                audience: { type: 'users', value: recipientIds },
-                notification: { 
-                    title: displaySubject, 
-                    body: `${params.sentBy}: ${params.message.replace(/<[^>]*>?/gm, '').substring(0, 100)}...`, 
-                    tag: newRef.id 
-                }
-            });
-
-            const BATCH_SIZE = 450;
-            for (let i = 0; i < recipientIds.length; i += BATCH_SIZE) {
-                const chunk = recipientIds.slice(i, i + BATCH_SIZE);
-                const batch = firestore.batch();
-                chunk.forEach(id => {
-                    const ref = firestore.collection('notifications').doc();
-                    batch.set(ref, {
-                        recipientId: id,
-                        type: 'Platform Announcement',
-                        subject: displaySubject,
-                        from: params.sentBy,
-                        date: Timestamp.now().toDate().toISOString(),
-                        status: 'New',
-                        relatedId: newRef.id
+                // Push notifications
+                try {
+                    await sendPushNotificationAction({
+                        audience: { type: 'users', value: recipientIds },
+                        notification: { 
+                            title: displaySubject, 
+                            body: `${params.sentBy}: ${params.message.replace(/<[^>]*>?/gm, '').substring(0, 100)}...`, 
+                            tag: newRef.id 
+                        }
                     });
-                });
-                await batch.commit();
-            }
-
-            if (params.sendEmail) {
-                const emailRecipients: { email: string; name: string }[] = [];
-                const FETCH_CHUNK = 30;
-                for (let i = 0; i < recipientIds.length; i += FETCH_CHUNK) {
-                    const chunkIds = recipientIds.slice(i, i + FETCH_CHUNK);
-                    const usersSnap = await firestore.collection('users').where('__name__', 'in', chunkIds).get();
-                    usersSnap.docs.forEach(doc => {
-                        const d = doc.data();
-                        if (d.email) emailRecipients.push({ email: d.email, name: d.name });
-                    });
+                } catch (pushErr) {
+                    console.warn("Push notification dispatch notice:", pushErr);
                 }
-                
-                if (emailRecipients.length > 0) {
-                    // SECURITY FIX: Send to the platform sender and BCC all recipients to protect privacy
-                    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'noreply@my-community-hub.co.uk';
-                    
-                    // Brevo and other SMTP providers have limits on BCC recipients per call.
-                    // We chunk the BCC sends to ensure high deliverability and reliability.
-                    const SEND_CHUNK = 90; 
-                    for (let i = 0; i < emailRecipients.length; i += SEND_CHUNK) {
-                        const bccChunk = emailRecipients.slice(i, i + SEND_CHUNK);
-                        await sendEmail({
-                            to: [{ email: senderEmail, name: 'Community Hub Platform' }],
-                            bcc: bccChunk,
-                            subject: displaySubject,
-                            htmlContent: `<h2>${displaySubject}</h2><hr/>${params.message}`,
+
+                // In-app notifications
+                try {
+                    const BATCH_SIZE = 450;
+                    for (let i = 0; i < recipientIds.length; i += BATCH_SIZE) {
+                        const chunk = recipientIds.slice(i, i + BATCH_SIZE);
+                        const batch = firestore.batch();
+                        chunk.forEach(id => {
+                            const ref = firestore.collection('notifications').doc();
+                            batch.set(ref, {
+                                recipientId: id,
+                                type: 'Platform Announcement',
+                                subject: displaySubject,
+                                from: params.sentBy,
+                                date: Timestamp.now().toDate().toISOString(),
+                                status: 'New',
+                                relatedId: newRef.id
+                            });
                         });
+                        await batch.commit();
+                    }
+                } catch (notifErr) {
+                    console.warn("In-app notifications batch write notice:", notifErr);
+                }
+
+                // Email broadcast via Brevo
+                if (params.sendEmail) {
+                    try {
+                        const emailRecipients: { email: string; name: string }[] = [];
+                        const FETCH_CHUNK = 30;
+                        for (let i = 0; i < recipientIds.length; i += FETCH_CHUNK) {
+                            const chunkIds = recipientIds.slice(i, i + FETCH_CHUNK);
+                            const usersSnap = await firestore.collection('users').where('__name__', 'in', chunkIds).get();
+                            usersSnap.docs.forEach(doc => {
+                                const d = doc.data();
+                                if (d.email) emailRecipients.push({ email: d.email, name: d.name || '' });
+                            });
+                        }
+                        
+                        if (emailRecipients.length > 0) {
+                            // Verified Brevo platform sender
+                            const senderEmail = process.env.BREVO_SENDER_EMAIL || 'info@my-community-hub.co.uk';
+                            
+                            // Brevo allows BCC recipients per batch; chunk to ensure deliverability
+                            const SEND_CHUNK = 90; 
+                            for (let i = 0; i < emailRecipients.length; i += SEND_CHUNK) {
+                                const bccChunk = emailRecipients.slice(i, i + SEND_CHUNK);
+                                const emailResult = await sendEmail({
+                                    to: [{ email: senderEmail, name: 'Community Hub Platform' }],
+                                    bcc: bccChunk,
+                                    subject: displaySubject,
+                                    htmlContent: `<h2>${displaySubject}</h2><hr/>${params.message}`,
+                                });
+                                console.log(`Dispatched announcement email chunk (${bccChunk.length} recipients):`, emailResult);
+                            }
+                        } else {
+                            console.log("No email addresses found for recipient IDs, skipping email dispatch.");
+                        }
+                    } catch (emailErr) {
+                        console.error("Announcement email dispatch error:", emailErr);
                     }
                 }
             }
+        } catch (dispatchErr) {
+            console.error("Recipient resolution or notification loop error:", dispatchErr);
         }
     }
 

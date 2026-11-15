@@ -6,3 +6,6 @@ runConfig:
   # more instances in response to increased traffic.
   maxInstances: 1
 
+env:
+  - variable: BREVO_SENDER_EMAIL
+    value: info@my-community-hub.co.uk

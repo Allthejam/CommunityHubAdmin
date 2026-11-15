@@ -389,6 +389,7 @@ export function BroadcastComposer() {
                 // Dispatches background server actions for Push / Email / Audit
                 try {
                     await createPlatformAnnouncementAction({
+                        announcementId: newRef.id,
                         userId: user.uid,
                         subject,
                         message,
