@@ -36,6 +36,8 @@ import {
     AlertTriangle,
     RotateCw,
     Info,
+    CreditCard,
+    QrCode,
 } from "lucide-react"
 import { collection, query, onSnapshot, serverTimestamp, doc, getDocs, where, limit, writeBatch, getDoc, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -75,7 +77,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { cn } from "@/lib/utils";
-import { updateCommunityStatusAction, renameCommunityAction, updateCommunityTypeAction, updateCommunityVisibilityAction, runSetCommunityRevenueShare, runBulkUpdateCommunityStatus } from "@/lib/actions/communityActions";
+import { updateCommunityStatusAction, renameCommunityAction, updateCommunityTypeAction, updateCommunityVisibilityAction, runSetCommunityRevenueShare, runBulkUpdateCommunityStatus, toggleCommunityPosCardUnlockedAction } from "@/lib/actions/communityActions";
 import { logAuditTrailAction } from "@/lib/actions/auditActions";
 import { recalculateCommunityCounts } from "@/lib/actions/dataSyncActions";
 import { runImpersonateUser } from "@/lib/actions/userActions";
@@ -120,6 +122,7 @@ export type Community = {
   createdBy: string;
   monthlyIncome: number;
   revenueShare?: number;
+  posCardUnlockedOverride?: boolean;
 };
 
 export type UserOption = {
@@ -684,6 +687,53 @@ function ManageCommunitiesTable() {
         }
     };
 
+    const handleTogglePosCardUnlocked = async (community: Community) => {
+        const newUnlocked = !community.posCardUnlockedOverride;
+        let updated = false;
+
+        if (db) {
+            try {
+                await updateDoc(doc(db, 'communities', community.id), {
+                    posCardUnlockedOverride: newUnlocked,
+                    updatedAt: serverTimestamp()
+                });
+                updated = true;
+                logAuditTrailAction({
+                    adminId: user?.uid || 'system_admin',
+                    adminName: (userProfile as any)?.name || user?.displayName || 'Platform Administration',
+                    action: newUnlocked ? 'community_pos_card_unlocked' : 'community_pos_card_locked',
+                    category: 'Communities & Hubs',
+                    details: `${newUnlocked ? 'Enabled' : 'Disabled'} POS QR/Card sample access override for community "${community.name}".`,
+                    targetObject: { id: community.id, name: community.name, type: 'Community Hub' },
+                    metadata: { posCardUnlockedOverride: newUnlocked }
+                }).catch(() => {});
+                toast({
+                    title: newUnlocked ? 'POS Sample Access Enabled' : 'POS Sample Access Disabled',
+                    description: `QR / Card payments for "${community.name}" are now ${newUnlocked ? 'unlocked for pilot testing (bypassing 3-subscription requirement)' : 'locked until 3 active business subscriptions are reached'}.`
+                });
+            } catch (clientErr) {
+                console.warn("Client direct update encountered error, falling back to server action:", clientErr);
+            }
+        }
+
+        if (!updated) {
+            const result = await toggleCommunityPosCardUnlockedAction({
+                communityId: community.id,
+                unlocked: newUnlocked,
+                adminId: user?.uid,
+                adminName: (userProfile as any)?.name || user?.displayName || 'Platform Administration'
+            });
+            if (result.success) {
+                toast({
+                    title: newUnlocked ? 'POS Sample Access Enabled' : 'POS Sample Access Disabled',
+                    description: `QR / Card payments for "${community.name}" are now ${newUnlocked ? 'unlocked for pilot testing (bypassing 3-subscription requirement)' : 'locked until 3 active business subscriptions are reached'}.`
+                });
+            } else {
+                toast({ title: 'Error', description: result.error || 'Failed to update POS override.', variant: 'destructive' });
+            }
+        }
+    };
+
     const handleImpersonateLeader = async (community: Community) => {
         if (!userProfile?.permissions?.actionImpersonateLeader) {
             toast({ title: "Permission Denied", description: "You do not have rights to impersonate community leaders.", variant: "destructive" });
@@ -1041,8 +1091,13 @@ function ManageCommunitiesTable() {
                             <ContextMenuTrigger asChild>
                                 <TableRow className={cn(isDisputed && "bg-destructive/10", "hover:bg-muted/50 cursor-context-menu")}>
                                     <TableCell>
-                                      <div className="font-medium">
-                                        {community.name}
+                                      <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                                        <span>{community.name}</span>
+                                        {community.posCardUnlockedOverride && (
+                                          <Badge variant="outline" className="border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400 text-[10px] font-semibold px-1.5 py-0">
+                                            POS Pilot
+                                          </Badge>
+                                        )}
                                       </div>
                                       <div className="text-xs text-muted-foreground">
                                         {community.type === "geographic"
@@ -1126,6 +1181,10 @@ function ManageCommunitiesTable() {
                                                     {community.visibility === 'public' ? <Lock className="mr-2 h-4 w-4" /> : <Globe className="mr-2 h-4 w-4" />}
                                                     Make {community.visibility === 'public' ? 'Private' : 'Public'}
                                                 </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleTogglePosCardUnlocked(community)}>
+                                                    <CreditCard className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                    {community.posCardUnlockedOverride ? 'Disable POS Card Pilot Access' : 'Enable POS Card Pilot Access'}
+                                                </DropdownMenuItem>
                                                 
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuSub>
@@ -1196,6 +1255,10 @@ function ManageCommunitiesTable() {
                                 <ContextMenuItem onSelect={() => handleChangeVisibilityClick(community)}>
                                     {community.visibility === 'public' ? <Lock className="mr-2 h-4 w-4" /> : <Globe className="mr-2 h-4 w-4" />}
                                     Make {community.visibility === 'public' ? 'Private' : 'Public'}
+                                </ContextMenuItem>
+                                <ContextMenuItem onClick={() => handleTogglePosCardUnlocked(community)}>
+                                    <CreditCard className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    {community.posCardUnlockedOverride ? 'Disable POS Card Pilot Access' : 'Enable POS Card Pilot Access'}
                                 </ContextMenuItem>
                                 <ContextMenuSeparator />
                                 <ContextMenuSub>
@@ -1307,6 +1370,19 @@ function ManageCommunitiesTable() {
                                             <div className="p-2 border rounded-md bg-muted/20">
                                                 <p className="text-[9px] font-bold uppercase text-muted-foreground mb-1">Type</p>
                                                 <p className="text-xs font-bold capitalize">{viewingCommunityDetails.type}</p>
+                                            </div>
+                                            <div className="p-2 border rounded-md bg-muted/20 col-span-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[9px] font-bold uppercase text-muted-foreground">POS Card / QR Pilot Override</p>
+                                                        <p className="text-xs font-semibold text-foreground mt-0.5">
+                                                            {viewingCommunityDetails.posCardUnlockedOverride ? 'Pilot Sample Access Enabled' : 'Standard 3-Sub Requirement'}
+                                                        </p>
+                                                    </div>
+                                                    <Badge variant={viewingCommunityDetails.posCardUnlockedOverride ? "default" : "outline"} className={cn("text-[10px] font-bold", viewingCommunityDetails.posCardUnlockedOverride ? "bg-blue-600 text-white" : "")}>
+                                                        {viewingCommunityDetails.posCardUnlockedOverride ? 'Pilot Active' : 'Normal Gating'}
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
                                     </section>

@@ -27,6 +27,7 @@ export type Community = {
   monthlyIncome: number;
   revenueShare?: number;
   isLocked?: boolean;
+  posCardUnlockedOverride?: boolean;
 };
 
 export async function updateCommunityStatusAction(params: {
@@ -567,4 +568,39 @@ export async function runToggleRegionalLock(params: { networkId: string; isLocke
         return { success: false, error: error.message };
     }
 }
+
+export async function toggleCommunityPosCardUnlockedAction(params: {
+    communityId: string;
+    unlocked: boolean;
+    adminId?: string;
+    adminName?: string;
+}): Promise<ActionResponse> {
+    try {
+        const { firestore } = initializeAdminApp();
+        await firestore.collection('communities').doc(params.communityId).update({
+            posCardUnlockedOverride: params.unlocked,
+            updatedAt: Timestamp.now()
+        });
+
+        try {
+            await logAuditTrailAction({
+                adminId: params.adminId || 'system_admin',
+                adminName: params.adminName || 'Platform Administration',
+                action: params.unlocked ? 'community_pos_card_unlocked' : 'community_pos_card_locked',
+                category: 'Communities & Hubs',
+                details: `${params.unlocked ? 'Enabled' : 'Disabled'} POS QR/Card sample access override for community "${params.communityId}".`,
+                targetObject: { id: params.communityId, name: params.communityId, type: 'Community Hub' },
+                metadata: { posCardUnlockedOverride: params.unlocked }
+            });
+        } catch (auditErr) {
+            console.warn("Could not log POS unlock override audit trail:", auditErr);
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error toggling community POS card unlocked override:", error);
+        return { success: false, error: error.message };
+    }
+}
+
 
