@@ -499,8 +499,8 @@ function ManageCommunitiesTable() {
       communities.sort((a, b) => {
           const key = sorting.key;
           const order = sorting.order === 'asc' ? 1 : -1;
-          const valA = a[key as keyof Community] ?? '';
-          const valB = b[key as keyof Community] ?? '';
+          const valA = key === 'revenueShare' ? (a.revenueShare ?? (a.type === 'topic' ? 0 : 70)) : (a[key as keyof Community] ?? '');
+          const valB = key === 'revenueShare' ? (b.revenueShare ?? (b.type === 'topic' ? 0 : 70)) : (b[key as keyof Community] ?? '');
 
           if (valA < valB) return -1 * order;
           if (valA > valB) return 1 * order;
@@ -666,7 +666,7 @@ function ManageCommunitiesTable() {
     
     const handleRevenueShareClick = (community: Community) => {
         setCommunityForRevenue(community);
-        setRevenueShare(community.revenueShare ?? (community.type === 'topic' ? 0 : 40));
+        setRevenueShare(community.revenueShare ?? (community.type === 'topic' ? 0 : 70));
         setRevenueShareReason("");
         setIsRevenueDialogOpen(true);
     };
@@ -1135,7 +1135,7 @@ function ManageCommunitiesTable() {
                                     </TableCell>
                                     <TableCell className="text-center font-medium">
                                       {community.revenueShare ??
-                                        (community.type === "topic" ? 0 : 40)}
+                                        (community.type === "topic" ? 0 : 70)}
                                       %
                                     </TableCell>
                                     <TableCell>
@@ -1416,7 +1416,7 @@ function ManageCommunitiesTable() {
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div className="p-3 border rounded-lg bg-blue-50/50">
                                             <p className="text-[9px] font-bold uppercase text-blue-600 mb-1">Revenue Share</p>
-                                            <p className="text-xl font-black">{viewingCommunityDetails.revenueShare || (viewingCommunityDetails.type === 'topic' ? 0 : 40)}%</p>
+                                            <p className="text-xl font-black">{viewingCommunityDetails.revenueShare || (viewingCommunityDetails.type === 'topic' ? 0 : 70)}%</p>
                                         </div>
                                         <div className="p-3 border rounded-lg bg-green-50/50">
                                             <p className="text-[9px] font-bold uppercase text-green-600 mb-1">Monthly Net Yield</p>
@@ -1431,7 +1431,7 @@ function ManageCommunitiesTable() {
                                             <p className="text-xs font-bold text-slate-500 italic">Tracking Active</p>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground italic">* Monthly Net Yield is calculated after 2.5% Stripe fees. Includes Listing Share ({viewingCommunityDetails.revenueShare || 40}%) and Storefront Share (10%).</p>
+                                    <p className="text-[10px] text-muted-foreground italic">* Monthly Net Yield is calculated after 2.5% Stripe fees. Includes Listing Share ({viewingCommunityDetails.revenueShare || 70}%) and Storefront Share (10%).</p>
                                 </section>
 
                                 <section className="space-y-4">
@@ -1643,7 +1643,7 @@ function ManageCommunitiesTable() {
                             <Label htmlFor="revenue-reason">Reason for change</Label>
                             <Textarea 
                                 id="revenue-reason"
-                                placeholder="e.g., Standard 40% share for new geographic communities."
+                                placeholder="e.g., Standard 70% share for new geographic communities."
                                 value={revenueShareReason}
                                 onChange={(e) => setRevenueShareReason(e.target.value)}
                              />

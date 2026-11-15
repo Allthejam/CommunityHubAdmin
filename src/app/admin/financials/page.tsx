@@ -219,7 +219,7 @@ export default function AdminFinancialsPage() {
 
     const stripeFeeMultiplier = 0.975; // 100% - 2.5% fee
 
-    // 1. Business Listing Stream (Split 60/40)
+    // 1. Business Listing Stream (Split 30/70)
     const standardBusinesses = subscribedBusinesses.filter(b => b.accountType === 'business' || !b.accountType);
     setStandardCount(standardBusinesses.length);
     
@@ -264,7 +264,7 @@ export default function AdminFinancialsPage() {
     standardBusinesses.forEach(business => {
         const communityId = business.primaryCommunityId;
         const communityDoc = allCommunities.get(communityId);
-        const shareRate = (communityDoc?.revenueShare ?? 40) / 100;
+        const shareRate = (communityDoc?.revenueShare ?? 70) / 100;
         
         const listingShare = listingNetUnit * shareRate;
         totalCommunityShare += listingShare;
@@ -470,7 +470,7 @@ export default function AdminFinancialsPage() {
                     Financial Overview &amp; Splits
                 </h1>
                 <p className="text-muted-foreground text-sm sm:text-base mt-2 max-w-3xl leading-relaxed">
-                    Itemized platform revenue ledger, retained net earnings, Stripe fee accounting (2.5%), and 40% community leader dividend distributions.
+                    Itemized platform revenue ledger, retained net earnings, Stripe fee accounting (2.5%), and 70% community leader dividend distributions.
                 </p>
             </div>
 
@@ -499,7 +499,7 @@ export default function AdminFinancialsPage() {
                         <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
                             👑 Platform Owner Net
                         </Badge>
-                        <span className="text-xs font-mono font-bold text-emerald-600">60% Listing + 100% Retained</span>
+                        <span className="text-xs font-mono font-bold text-emerald-600">30% Listing + 100% Retained</span>
                     </div>
                     <CardTitle className="text-base font-black text-foreground mt-1">Total Platform Net Profit</CardTitle>
                     <CardDescription>Net retained income across all revenue channels after Stripe processing fees (2.5%).</CardDescription>
@@ -528,7 +528,7 @@ export default function AdminFinancialsPage() {
                         <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30 text-[10px] font-black uppercase tracking-wider">
                             🌟 Community Dividend Pool
                         </Badge>
-                        <span className="text-xs font-mono font-bold text-blue-600">40% Listing Share Pool</span>
+                        <span className="text-xs font-mono font-bold text-blue-600">70% Listing Share Pool</span>
                     </div>
                     <CardTitle className="text-base font-black text-foreground mt-1">Community Leader Dividend Share</CardTitle>
                     <CardDescription>Aggregate monthly dividend pool allocated to verified community hub leaders.</CardDescription>
@@ -560,7 +560,7 @@ export default function AdminFinancialsPage() {
                     <div className="text-2xl font-black text-foreground">{formatCurrency(businessNetIncome)}</div>
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold mt-1.5 pt-1.5 border-t">
                         <span>{standardCount} active listings</span>
-                        <Badge variant="outline" className="text-[9px] font-mono font-bold bg-blue-500/10 text-blue-600 border-blue-500/30">60/40 Split</Badge>
+                        <Badge variant="outline" className="text-[9px] font-mono font-bold bg-blue-500/10 text-blue-600 border-blue-500/30">30/70 Split</Badge>
                     </div>
                 </CardContent>
             </Card>
