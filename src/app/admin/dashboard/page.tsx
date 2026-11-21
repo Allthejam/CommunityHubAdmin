@@ -85,7 +85,7 @@ export default function AdminDashboardPage() {
     const urgentBroadcasts = React.useMemo(() => announcements?.filter(a => a.type === 'Standard' && a.severity === 'urgent').length || 0, [announcements]);
     const emergencyBroadcasts = React.useMemo(() => announcements?.filter(a => a.type === 'Emergency').length || 0, [announcements]);
 
-    const totalUsers = users ? users.length : 0;
+    const totalUsers = React.useMemo(() => users ? users.filter((u: any) => u.name || u.email).length : 0, [users]);
     const totalDeleted = deletedUsers ? deletedUsers.length : 0;
     const totalCommunities = communities ? communities.length : 0;
     const pendingApplications = applications ? applications.length : 0;
@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
     const dashboardCards = [
         { 
             title: "Users", 
-            description: usersLoading ? <Loader2 className="h-5 w-5 animate-spin text-blue-500"/> : `${totalUsers} Active`, 
+            description: usersLoading ? <Loader2 className="h-5 w-5 animate-spin text-blue-500"/> : `${totalUsers} Registered`, 
             icon: Users, 
             href: "/admin/manage-users",
             accentBg: "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400",

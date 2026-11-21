@@ -17,12 +17,13 @@ const AccountTypesChart = () => {
         return collection(db, 'users');
     }, [db]);
 
-    const { data: users, isLoading } = useCollection<{ accountType: string }>(usersQuery);
+    const { data: users, isLoading } = useCollection<{ accountType?: string; name?: string; email?: string }>(usersQuery);
 
     const chartData = React.useMemo(() => {
         if (!users) return [];
 
-        const counts = users.reduce((acc, user) => {
+        const validUsers = users.filter((u) => u.name || u.email);
+        const counts = validUsers.reduce((acc, user) => {
             const type = user.accountType || 'personal'; // Default to personal if not specified
             acc[type] = (acc[type] || 0) + 1;
             return acc;
