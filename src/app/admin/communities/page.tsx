@@ -325,6 +325,7 @@ function ManageCommunitiesTable() {
   const searchParams = useSearchParams();
   const disputeId = searchParams.get('dispute');
   const withId = searchParams.get('with');
+  const viewCommunityId = searchParams.get('view') || searchParams.get('id') || searchParams.get('communityId');
 
   const [allCommunities, setAllCommunities] = React.useState<Community[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -457,6 +458,20 @@ function ManageCommunitiesTable() {
         unsubUsers();
     };
   }, [db]);
+
+  // Auto-open requested community from URL param (e.g. from admin notification)
+  const handledViewRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!viewCommunityId || allCommunities.length === 0) return;
+    if (handledViewRef.current === viewCommunityId) return;
+
+    const targetCommunity = allCommunities.find(c => c.id === viewCommunityId);
+    if (targetCommunity) {
+      handledViewRef.current = viewCommunityId;
+      setViewingCommunityDetails(targetCommunity);
+      setFilters(prev => ({ ...prev, name: targetCommunity.name }));
+    }
+  }, [viewCommunityId, allCommunities]);
   
   // Stats calculation
   const stats = React.useMemo(() => {

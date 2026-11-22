@@ -152,9 +152,14 @@ const getNotificationTargetPath = (notification: Notification | null): string =>
     if (!notification) return '';
     if ((notification as any).actionUrl) {
         const target = String((notification as any).actionUrl);
-        return target.startsWith('/admin/team/')
-            ? target.replace('/admin/team/', '/admin/applications/')
-            : target;
+        if (target.startsWith('/admin/team/')) {
+            return target.replace('/admin/team/', '/admin/applications/');
+        }
+        if (target.startsWith('/admin/communities/') && target !== '/admin/communities/map') {
+            const commId = target.replace('/admin/communities/', '').split('?')[0];
+            return commId ? `/admin/communities?view=${commId}` : '/admin/communities';
+        }
+        return target;
     }
     switch (notification.type) {
         case 'New Report': return '/admin/reports';
@@ -162,7 +167,8 @@ const getNotificationTargetPath = (notification: Notification | null): string =>
         case 'Special Access Request': return notification.relatedId ? `/admin/special-access/${notification.relatedId}` : '/admin/special-access';
         case 'Boundary Dispute': return '/admin/communities/map';
         case 'Advertiser Profile': return notification.relatedId ? `/admin/national-advertisers/${notification.relatedId}` : '/admin/national-advertisers';
-        case 'New Community': return '/admin/communities';
+        case 'New Community': return notification.relatedId ? `/admin/communities?view=${notification.relatedId}` : '/admin/communities';
+        case 'Community Milestone': return notification.relatedId ? `/admin/communities?view=${notification.relatedId}` : '/admin/communities';
         case 'Business Submission': return '/admin/businesses';
         case 'Leader Information Update': return notification.relatedId ? `/admin/applications/${notification.relatedId}` : '/admin/applications';
         case 'New Message': return notification.from === "Platform Administration" && notification.relatedId ? `/admin/staff-chat?conversationId=${notification.relatedId}` : '/admin/staff-chat';
