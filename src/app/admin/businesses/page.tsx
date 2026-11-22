@@ -23,7 +23,7 @@ import {
 import { collection, query, onSnapshot, orderBy, doc } from "firebase/firestore";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, differenceInDays, isValid } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -69,13 +69,68 @@ type Business = {
   businessName: string;
   ownerId: string;
   primaryCommunityId: string;
-  status: "Pending Approval" | "Approved" | "Requires Amendment" | "Declined" | "Subscribed" | "Draft" | "Hidden" | "Trial Expired";
+  status: "Pending Approval" | "Approved" | "Requires Amendment" | "Declined" | "Subscribed" | "Draft" | "Hidden" | "Trial Expired" | "Unclaimed";
   storefrontSubscription?: boolean;
   createdAt: any;
   updatedAt: any;
   submittedAt?: any;
   contactEmail?: string;
+  isUnclaimed?: boolean;
+  isPlatformCreated?: boolean;
+  claimed?: boolean;
+  createdBy?: string;
+  seedSource?: 'admin' | 'community';
+  isFreeListing?: boolean;
+  freeListingExpiresAt?: any;
 };
+
+type SourceFilter = 'all' | 'admin' | 'community' | 'registered';
+type SortKey = keyof Business | 'seedSource';
+
+function safeToDate(ts: any): Date | null {
+    if (!ts) return null;
+    try {
+        const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts.seconds !== undefined ? new Date(ts.seconds * 1000) : new Date(ts));
+        return isValid(d) ? d : null;
+    } catch {
+        return null;
+    }
+}
+
+function isSeededOrUnclaimed(biz: Business): boolean {
+    if (!biz) return false;
+    if (biz.claimed === true) return false;
+    return Boolean(
+        biz.isUnclaimed === true ||
+        biz.status === 'Unclaimed' ||
+        biz.isPlatformCreated === true ||
+        biz.ownerId === 'platform' ||
+        biz.createdBy === 'platform' ||
+        biz.seedSource === 'admin' ||
+        biz.seedSource === 'community' ||
+        biz.claimed === false
+    );
+}
+
+function getSeedSource(biz: Business): 'admin' | 'community' | 'registered' {
+    if (!isSeededOrUnclaimed(biz)) return 'registered';
+    if (biz.seedSource === 'community') return 'community';
+    return 'admin';
+}
+
+function isEffectiveTrialExpired(biz: Business): boolean {
+    if (isSeededOrUnclaimed(biz)) return false;
+    if (biz.isFreeListing) {
+        const exp = safeToDate(biz.freeListingExpiresAt);
+        return Boolean(exp && new Date() > exp);
+    }
+    if (biz.status === 'Trial Expired') return true;
+    if (biz.status === 'Approved') {
+        const created = safeToDate(biz.createdAt);
+        return Boolean(created && differenceInDays(new Date(), created) >= 14);
+    }
+    return false;
+}
 
 export default function AdminBusinessDirectoryPage() {
     const db = useFirestore();
@@ -88,10 +143,11 @@ export default function AdminBusinessDirectoryPage() {
     // Table State
     const [nameFilter, setNameFilter] = React.useState("");
     const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
-    const [sorting, setSorting] = React.useState<{ key: keyof Business; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
+    const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>('all');
+    const [sorting, setSorting] = React.useState<{ key: SortKey; order: 'asc' | 'desc' }>({ key: 'createdAt', order: 'desc' });
     const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
 
-    const statuses: Business['status'][] = ["Subscribed", "Approved", "Pending Approval", "Requires Amendment", "Trial Expired", "Declined", "Draft"];
+    const statuses: Business['status'][] = ["Subscribed", "Approved", "Unclaimed", "Pending Approval", "Requires Amendment", "Trial Expired", "Declined", "Draft"];
 
     React.useEffect(() => {
         if (!db) return;
@@ -129,13 +185,16 @@ export default function AdminBusinessDirectoryPage() {
             total: businesses.length,
             subscribed: businesses.filter(b => b.status === 'Subscribed').length,
             storefront: businesses.filter(b => b.storefrontSubscription).length,
-            approved: businesses.filter(b => b.status === 'Approved').length,
+            approved: businesses.filter(b => b.status === 'Approved' && !isSeededOrUnclaimed(b) && !b.isFreeListing && !isEffectiveTrialExpired(b)).length,
             pending: businesses.filter(b => b.status === 'Pending Approval').length,
-            attention: businesses.filter(b => ['Requires Amendment', 'Declined', 'Trial Expired'].includes(b.status)).length,
+            attention: businesses.filter(b => !isSeededOrUnclaimed(b) && (['Requires Amendment', 'Declined'].includes(b.status) || isEffectiveTrialExpired(b))).length,
+            adminSeeded: businesses.filter(b => getSeedSource(b) === 'admin').length,
+            communitySeeded: businesses.filter(b => getSeedSource(b) === 'community').length,
+            registered: businesses.filter(b => getSeedSource(b) === 'registered').length,
         };
     }, [businesses]);
 
-    const handleSort = (key: keyof Business) => {
+    const handleSort = (key: SortKey) => {
         setSorting(prev => ({
             key,
             order: prev.key === key && prev.order === 'asc' ? 'desc' : 'asc'
@@ -149,16 +208,34 @@ export default function AdminBusinessDirectoryPage() {
             filtered = filtered.filter(b => b.businessName?.toLowerCase().includes(nameFilter.toLowerCase()));
         }
 
+        if (sourceFilter !== 'all') {
+            filtered = filtered.filter(b => getSeedSource(b) === sourceFilter);
+        }
+
         if (statusFilter.length > 0) {
-            filtered = filtered.filter(b => statusFilter.includes(b.status));
+            filtered = filtered.filter(b => {
+                if (statusFilter.includes('Unclaimed') && isSeededOrUnclaimed(b)) return true;
+                if (statusFilter.includes('Trial Expired') && isEffectiveTrialExpired(b)) return true;
+                if (statusFilter.includes('Approved') && b.status === 'Approved' && !isSeededOrUnclaimed(b) && !isEffectiveTrialExpired(b)) return true;
+                const otherStatuses = statusFilter.filter(s => s !== 'Unclaimed' && s !== 'Trial Expired' && s !== 'Approved');
+                return otherStatuses.includes(b.status);
+            });
         }
 
         return [...filtered].sort((a, b) => {
             const key = sorting.key;
             const order = sorting.order === 'asc' ? 1 : -1;
+
+            if (key === 'seedSource') {
+                const rank = (item: Business) => {
+                    const src = getSeedSource(item);
+                    return src === 'admin' ? 0 : src === 'community' ? 1 : 2;
+                };
+                return (rank(a) - rank(b)) * order;
+            }
             
-            let valA = a[key] ?? '';
-            let valB = b[key] ?? '';
+            let valA = a[key as keyof Business] ?? '';
+            let valB = b[key as keyof Business] ?? '';
 
             if (key === 'createdAt' || key === 'updatedAt' || key === 'submittedAt') {
                 const timeA = valA?.seconds ? valA.seconds * 1000 : (valA ? new Date(valA).getTime() : 0);
@@ -172,7 +249,7 @@ export default function AdminBusinessDirectoryPage() {
 
             return 0;
         });
-    }, [businesses, nameFilter, statusFilter, sorting]);
+    }, [businesses, nameFilter, statusFilter, sourceFilter, sorting]);
 
     const paginatedBusinesses = React.useMemo(() => {
         const start = pagination.pageIndex * pagination.pageSize;
@@ -317,12 +394,46 @@ export default function AdminBusinessDirectoryPage() {
                                     ))}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            {(nameFilter || statusFilter.length > 0) && (
-                                <Button variant="ghost" onClick={() => { setNameFilter(""); setStatusFilter([]); }}>
+                            {(nameFilter || statusFilter.length > 0 || sourceFilter !== 'all') && (
+                                <Button variant="ghost" onClick={() => { setNameFilter(""); setStatusFilter([]); setSourceFilter('all'); }}>
                                     <FilterX className="mr-2 h-4 w-4" /> Reset
                                 </Button>
                             )}
                         </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-3">
+                        <Button
+                            size="sm"
+                            variant={sourceFilter === 'all' ? 'default' : 'outline'}
+                            onClick={() => setSourceFilter('all')}
+                            className="h-8 text-xs"
+                        >
+                            All ({stats.total})
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={sourceFilter === 'admin' ? 'default' : 'outline'}
+                            onClick={() => setSourceFilter('admin')}
+                            className="h-8 text-xs"
+                        >
+                            Admin Seeded ({stats.adminSeeded})
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={sourceFilter === 'community' ? 'default' : 'outline'}
+                            onClick={() => setSourceFilter('community')}
+                            className="h-8 text-xs"
+                        >
+                            Community Seeded ({stats.communitySeeded})
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={sourceFilter === 'registered' ? 'default' : 'outline'}
+                            onClick={() => setSourceFilter('registered')}
+                            className="h-8 text-xs"
+                        >
+                            Registered ({stats.registered})
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -336,6 +447,11 @@ export default function AdminBusinessDirectoryPage() {
                                         </Button>
                                     </TableHead>
                                     <TableHead>Community</TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => handleSort('seedSource')}>
+                                            Source <ArrowUpDown className="ml-2 h-4 w-4" />
+                                        </Button>
+                                    </TableHead>
                                     <TableHead>
                                         <Button variant="ghost" onClick={() => handleSort('status')}>
                                             Status & Subscription <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -353,7 +469,7 @@ export default function AdminBusinessDirectoryPage() {
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center">
+                                        <TableCell colSpan={7} className="h-24 text-center">
                                             <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                                         </TableCell>
                                     </TableRow>
@@ -380,8 +496,38 @@ export default function AdminBusinessDirectoryPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
+                                                        {(() => {
+                                                            const source = getSeedSource(biz);
+                                                            if (source === 'admin') {
+                                                                return (
+                                                                    <Badge variant="outline" className="bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 whitespace-nowrap">
+                                                                        Admin Seeded
+                                                                    </Badge>
+                                                                );
+                                                            }
+                                                            if (source === 'community') {
+                                                                return (
+                                                                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 whitespace-nowrap">
+                                                                        Community Seeded
+                                                                    </Badge>
+                                                                );
+                                                            }
+                                                            return (
+                                                                <Badge variant="outline" className="bg-muted/60 text-muted-foreground whitespace-nowrap">
+                                                                    Registered
+                                                                </Badge>
+                                                            );
+                                                        })()}
+                                                    </TableCell>
+                                                    <TableCell>
                                                         <div className="flex flex-col gap-1.5">
-                                                            <BusinessStatusBadge status={biz.status} createdAt={biz.createdAt} />
+                                                            <BusinessStatusBadge
+                                                                status={biz.status}
+                                                                createdAt={biz.createdAt}
+                                                                isUnclaimed={isSeededOrUnclaimed(biz)}
+                                                                isFreeListing={biz.isFreeListing}
+                                                                freeListingExpiresAt={biz.freeListingExpiresAt}
+                                                            />
                                                             {biz.storefrontSubscription && (
                                                                 <Badge variant="outline" className="w-fit gap-1 text-[10px] h-5 py-0 bg-blue-50 text-blue-700 border-blue-200">
                                                                     <Store className="h-3 w-3" /> Storefront Active
@@ -467,7 +613,7 @@ export default function AdminBusinessDirectoryPage() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center">
+                                        <TableCell colSpan={7} className="h-24 text-center">
                                             No businesses found.
                                         </TableCell>
                                     </TableRow>
