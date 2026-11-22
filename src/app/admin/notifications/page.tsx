@@ -31,6 +31,9 @@ import {
     UserCircle,
     FileText,
     Trash2,
+    MapPin,
+    Lock,
+    Target,
 } from "lucide-react"
 import { collection, query, where, doc, orderBy, or, onSnapshot, updateDoc, deleteDoc, writeBatch, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
@@ -177,8 +180,107 @@ const getNotificationTargetPath = (notification: Notification | null): string =>
     }
 };
 
+const isPlatformScope = (n: Notification): boolean => {
+    if (n.targetApp === 'admin') return true;
+    if (n.targetApp === 'main') return false;
+    if (n.recipientId === 'platform_admin') return true;
+
+    const platformTypes = [
+        'Leadership Application',
+        'Community Milestone',
+        'Special Access Request',
+        'Advertiser Profile',
+        'Boundary Dispute',
+        'New Community',
+        'Business Submission',
+        'Courier Application',
+        'Platform Report Cleanup',
+        'Platform Report',
+        'Platform Announcement',
+        'Task Assignment',
+        'Leader Information Update',
+    ];
+    if (platformTypes.includes(n.type)) return true;
+
+    const localTypes = [
+        'New Report',
+        'Report Cleanup Warning',
+        'Lost & Found Report',
+        'Community Announcement',
+        'Traffic Scotland Road Alert',
+        'Event Request'
+    ];
+    if (localTypes.includes(n.type)) return false;
+
+    return !n.communityId && !(n.details as any)?.communityId;
+};
+
+const ChannelScopeBadge = ({ notification, communitiesMap }: { notification: Notification; communitiesMap: Map<string, string> }) => {
+    const isPlatform = isPlatformScope(notification);
+    const commName = notification.details?.communityName || 
+        (notification.communityId ? communitiesMap.get(notification.communityId) : undefined) ||
+        (notification.relatedId ? communitiesMap.get(notification.relatedId) : undefined);
+
+    if (isPlatform) {
+        if (notification.type === 'Community Milestone') {
+            return (
+                <Badge variant="outline" className="bg-amber-100/90 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-800 gap-1 font-bold text-[10px] uppercase">
+                    <Crown className="h-3 w-3 text-amber-600" />
+                    {commName ? `${commName} • Milestone` : 'Platform • Milestone'}
+                </Badge>
+            );
+        }
+        if (notification.type === 'Leadership Application') {
+            return (
+                <Badge variant="outline" className="bg-purple-100/90 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300 dark:border-purple-800 gap-1 font-bold text-[10px] uppercase">
+                    <Shield className="h-3 w-3 text-purple-600" />
+                    {commName ? `${commName} • Application` : 'Platform • Leadership'}
+                </Badge>
+            );
+        }
+        if (notification.type === 'Business Submission' || notification.type === 'Courier Application') {
+            return (
+                <Badge variant="outline" className="bg-cyan-100/90 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800 gap-1 font-bold text-[10px] uppercase">
+                    <Building className="h-3 w-3 text-cyan-600" />
+                    Commercial • Directory
+                </Badge>
+            );
+        }
+        if (notification.type === 'Advertiser Profile' || notification.type === 'Advert Approval Request') {
+            return (
+                <Badge variant="outline" className="bg-indigo-100/90 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800 gap-1 font-bold text-[10px] uppercase">
+                    <Target className="h-3 w-3 text-indigo-600" />
+                    National Advertising
+                </Badge>
+            );
+        }
+        if (notification.type === 'Special Access Request') {
+            return (
+                <Badge variant="outline" className="bg-rose-100/90 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-800 gap-1 font-bold text-[10px] uppercase">
+                    <Lock className="h-3 w-3 text-rose-600" />
+                    Special Access
+                </Badge>
+            );
+        }
+        return (
+            <Badge variant="outline" className="bg-purple-100/90 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300 dark:border-purple-800 gap-1 font-bold text-[10px] uppercase">
+                <Shield className="h-3 w-3 text-purple-600" />
+                Platform Admin
+            </Badge>
+        );
+    }
+
+    return (
+        <Badge variant="outline" className="bg-emerald-50/90 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 gap-1 font-bold text-[10px] uppercase">
+            <MapPin className="h-3 w-3 text-emerald-600" />
+            {commName ? `${commName} • Local Hub` : 'Community Local Hub'}
+        </Badge>
+    );
+};
+
 const NotificationRow = React.memo(({ 
     notification, 
+    communitiesMap,
     onView, 
     onOpenRecord,
     onUpdateStatus,
@@ -188,6 +290,7 @@ const NotificationRow = React.memo(({
     onToggleSelection 
 }: { 
     notification: Notification; 
+    communitiesMap: Map<string, string>;
     onView: (notification: Notification) => void;
     onOpenRecord: (notification: Notification) => void;
     onUpdateStatus: (id: string, status: NotificationStatus) => void;
@@ -198,7 +301,6 @@ const NotificationRow = React.memo(({
 }) => {
     const isNew = normalizeNotificationStatus(notification.status) === 'New';
     const formattedDate = React.useMemo(() => format(getSafeDate(notification.date), 'PPP'), [notification.date]);
-    const isPlatformAdmin = notification.recipientId === 'platform_admin';
     const targetPath = getNotificationTargetPath(notification);
 
     return (
@@ -219,17 +321,7 @@ const NotificationRow = React.memo(({
                 </div>
             </TableCell>
             <TableCell>
-                {isPlatformAdmin ? (
-                    <Badge variant="outline" className="bg-purple-100/90 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300 dark:border-purple-800 gap-1 font-bold text-[10px] uppercase">
-                        <Shield className="h-3 w-3 text-purple-600" />
-                        Platform Admin
-                    </Badge>
-                ) : (
-                    <Badge variant="outline" className="bg-blue-100/90 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300 dark:border-blue-800 gap-1 font-bold text-[10px] uppercase">
-                        <Crown className="h-3 w-3 text-blue-600" />
-                        {notification.details?.communityName ? `Leader • ${notification.details.communityName}` : 'Community Leader'}
-                    </Badge>
-                )}
+                <ChannelScopeBadge notification={notification} communitiesMap={communitiesMap} />
             </TableCell>
             <TableCell>
                 <StatusBadge status={notification.status} />
@@ -291,7 +383,7 @@ export default function AdminNotificationsPage() {
     const { data: userProfile, isLoading: profileLoading } = useDoc(userProfileRef);
 
     const [activeTab, setActiveTab] = React.useState("all");
-    const [scopeFilter, setScopeFilter] = React.useState<"all" | "admin" | "leader">("all");
+    const [scopeFilter, setScopeFilter] = React.useState<"platform" | "community" | "all">("platform");
     const [isAssignDialogOpen, setIsAssignDialogOpen] = React.useState(false);
     const [selectedNotification, setSelectedNotification] = React.useState<Notification | null>(null);
     const [viewingDetails, setViewingDetails] = React.useState<Notification | null>(null);
@@ -315,6 +407,19 @@ export default function AdminNotificationsPage() {
 
     // 2. Optimized Collection Subscription
     const { data: rawNotifications, isLoading: loading } = useCollection<Notification>(notificationsQuery);
+
+    // Communities lookup for mapping names
+    const [communitiesMap, setCommunitiesMap] = React.useState<Map<string, string>>(new Map());
+    React.useEffect(() => {
+        if (!db) return;
+        const commsQuery = collection(db, "communities");
+        const unsub = onSnapshot(commsQuery, (snap) => {
+            const map = new Map<string, string>();
+            snap.forEach(d => map.set(d.id, d.data().name));
+            setCommunitiesMap(map);
+        });
+        return () => unsub();
+    }, [db]);
     
     // 3. Team Lookup
     const [teamMembers, setTeamMembers] = React.useState<{id: string, name: string}[]>([]);
@@ -331,8 +436,8 @@ export default function AdminNotificationsPage() {
         return {
             total: list.length,
             unread: list.filter(n => normalizeNotificationStatus(n.status) === 'New').length,
-            adminAlerts: list.filter(n => n.recipientId === 'platform_admin').length,
-            leaderAlerts: list.filter(n => n.recipientId !== 'platform_admin').length,
+            platformAlerts: list.filter(n => isPlatformScope(n)).length,
+            communityAlerts: list.filter(n => !isPlatformScope(n)).length,
         };
     }, [rawNotifications]);
 
@@ -342,10 +447,10 @@ export default function AdminNotificationsPage() {
             ? rawNotifications 
             : rawNotifications.filter(n => normalizeNotificationStatus(n.status) === activeTab);
         
-        if (scopeFilter === 'admin') {
-            filtered = filtered.filter(n => n.recipientId === 'platform_admin');
-        } else if (scopeFilter === 'leader') {
-            filtered = filtered.filter(n => n.recipientId !== 'platform_admin');
+        if (scopeFilter === 'platform') {
+            filtered = filtered.filter(n => isPlatformScope(n));
+        } else if (scopeFilter === 'community') {
+            filtered = filtered.filter(n => !isPlatformScope(n));
         }
         
         return [...filtered].sort((a, b) => {
@@ -629,21 +734,21 @@ export default function AdminNotificationsPage() {
                                 <Shield className="h-3.5 w-3.5" />
                             </div>
                         </div>
-                        <div className="text-xl font-black text-purple-600 dark:text-purple-400">{notifStats.adminAlerts}</div>
-                        <p className="text-[9px] text-muted-foreground font-semibold">System-wide admin scope</p>
+                        <div className="text-xl font-black text-purple-600 dark:text-purple-400">{notifStats.platformAlerts}</div>
+                        <p className="text-[9px] text-muted-foreground font-semibold">System & governance scope</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-t-4 border-t-blue-500 shadow-sm hover:shadow-md transition-shadow">
+                <Card className="border-t-4 border-t-emerald-600 shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-3.5">
                         <div className="flex items-center justify-between pb-1">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Community Leader</p>
-                            <div className="p-1 rounded-md bg-blue-500/10 text-blue-600">
-                                <Crown className="h-3.5 w-3.5" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Local Community</p>
+                            <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600">
+                                <MapPin className="h-3.5 w-3.5" />
                             </div>
                         </div>
-                        <div className="text-xl font-black text-blue-600 dark:text-blue-400">{notifStats.leaderAlerts}</div>
-                        <p className="text-[9px] text-muted-foreground font-semibold">Home community dispatches</p>
+                        <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{notifStats.communityAlerts}</div>
+                        <p className="text-[9px] text-muted-foreground font-semibold">Parish & resident hub alerts</p>
                     </CardContent>
                 </Card>
             </div>
@@ -659,6 +764,24 @@ export default function AdminNotificationsPage() {
                         {/* Channel / Role Scope Filter Pills */}
                         <div className="flex items-center gap-1.5 p-1 bg-muted/70 rounded-lg border text-xs">
                             <button
+                                onClick={() => { setScopeFilter("platform"); setPagination(p => ({ ...p, pageIndex: 0 })); }}
+                                className={cn(
+                                    "px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1",
+                                    scopeFilter === "platform" ? "bg-purple-600 text-white shadow-sm" : "text-muted-foreground hover:text-purple-600"
+                                )}
+                            >
+                                <Shield className="h-3 w-3" /> Platform Admin ({notifStats.platformAlerts})
+                            </button>
+                            <button
+                                onClick={() => { setScopeFilter("community"); setPagination(p => ({ ...p, pageIndex: 0 })); }}
+                                className={cn(
+                                    "px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1",
+                                    scopeFilter === "community" ? "bg-emerald-600 text-white shadow-sm" : "text-muted-foreground hover:text-emerald-600"
+                                )}
+                            >
+                                <MapPin className="h-3 w-3" /> Local Community ({notifStats.communityAlerts})
+                            </button>
+                            <button
                                 onClick={() => { setScopeFilter("all"); setPagination(p => ({ ...p, pageIndex: 0 })); }}
                                 className={cn(
                                     "px-2.5 py-1 rounded-md font-bold transition-all text-xs",
@@ -666,24 +789,6 @@ export default function AdminNotificationsPage() {
                                 )}
                             >
                                 All Channels ({notifStats.total})
-                            </button>
-                            <button
-                                onClick={() => { setScopeFilter("admin"); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-                                className={cn(
-                                    "px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1",
-                                    scopeFilter === "admin" ? "bg-purple-600 text-white shadow-sm" : "text-muted-foreground hover:text-purple-600"
-                                )}
-                            >
-                                <Shield className="h-3 w-3" /> Admin ({notifStats.adminAlerts})
-                            </button>
-                            <button
-                                onClick={() => { setScopeFilter("leader"); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-                                className={cn(
-                                    "px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1",
-                                    scopeFilter === "leader" ? "bg-blue-600 text-white shadow-sm" : "text-muted-foreground hover:text-blue-600"
-                                )}
-                            >
-                                <Crown className="h-3 w-3" /> Leader ({notifStats.leaderAlerts})
                             </button>
                         </div>
                     </div>
@@ -721,6 +826,7 @@ export default function AdminNotificationsPage() {
                                     <NotificationRow 
                                         key={notification.id} 
                                         notification={notification} 
+                                        communitiesMap={communitiesMap}
                                         onView={handleView} 
                                         onOpenRecord={handleOpenRecord}
                                         onUpdateStatus={handleUpdateStatus}
@@ -782,10 +888,14 @@ export default function AdminNotificationsPage() {
                         </div>
                         <Separator />
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1"><UserCircle className="h-3 w-3" />Source</p>
-                                    <p className="text-sm font-bold">{viewingDetails?.from}</p>
+                                    <p className="text-xs font-bold truncate">{viewingDetails?.from}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1"><Shield className="h-3 w-3" />Scope</p>
+                                    {viewingDetails && <ChannelScopeBadge notification={viewingDetails} communitiesMap={communitiesMap} />}
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1"><ShieldCheck className="h-3 w-3" />Status</p>
