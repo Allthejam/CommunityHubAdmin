@@ -6,6 +6,7 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { isActualMember } from '@/lib/utils';
 
 const COLORS = ['#29ABE2', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#6366F1'];
 
@@ -22,7 +23,7 @@ const AccountTypesChart = () => {
     const chartData = React.useMemo(() => {
         if (!users) return [];
 
-        const validUsers = users.filter((u) => u.name || u.email);
+        const validUsers = users.filter(isActualMember);
         const counts = validUsers.reduce((acc, user) => {
             const type = user.accountType || 'personal'; // Default to personal if not specified
             acc[type] = (acc[type] || 0) + 1;

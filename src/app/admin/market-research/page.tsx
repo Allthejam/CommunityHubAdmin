@@ -39,7 +39,7 @@ import { collection, query, where, doc, collectionGroup } from "firebase/firesto
 import { format, isWithinInterval, startOfDay, endOfDay, subDays, differenceInDays, isBefore, isValid } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PaginationControls } from "@/components/ui/pagination";
-import { cn } from "@/lib/utils";
+import { cn, isActualMember } from "@/lib/utils";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -87,6 +87,11 @@ export default function MarketResearchPage() {
     const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db]);
     const { data: allUsers, isLoading: usersLoading } = useCollection(usersQuery);
 
+    const actualUsers = React.useMemo(() => {
+        if (!allUsers) return [];
+        return allUsers.filter(isActualMember);
+    }, [allUsers]);
+
     const commsQuery = useMemoFirebase(() => db ? collection(db, "communities") : null, [db]);
     const { data: allComms, isLoading: commsLoading } = useCollection(commsQuery);
 
@@ -112,11 +117,11 @@ export default function MarketResearchPage() {
     const { data: allReports } = useCollection(communityReportsQuery);
 
     const researchedUsers = React.useMemo(() => {
-        if (!allUsers || !fromDate) return [];
+        if (!actualUsers || !fromDate) return [];
         const start = startOfDay(fromDate);
         const end = endOfDay(toDate || fromDate);
 
-        let filtered = allUsers.filter(u => {
+        let filtered = actualUsers.filter(u => {
             const joined = resolveDate(u.joined);
             return isWithinInterval(joined, { start, end });
         });
@@ -138,14 +143,14 @@ export default function MarketResearchPage() {
             }
             return (valA > valB ? 1 : -1) * order;
         });
-    }, [allUsers, fromDate, toDate, userSorting]);
+    }, [actualUsers, fromDate, toDate, userSorting]);
 
     const atRiskUsers = React.useMemo(() => {
-        if (!allUsers) return [];
+        if (!actualUsers) return [];
         const now = new Date();
         const thirtyDaysAgo = subDays(now, 30);
 
-        return allUsers
+        return actualUsers
             .map(u => {
                 const lastActive = resolveDate(u.lastActive);
                 const lastSeenLegacy = resolveDate(u.lastSeen);
@@ -164,15 +169,15 @@ export default function MarketResearchPage() {
                 const valB = (b as any)[retentionSorting.key];
                 return (valA > valB ? 1 : -1) * order;
             });
-    }, [allUsers, retentionSorting]);
+    }, [actualUsers, retentionSorting]);
 
     const demographicStats = React.useMemo(() => {
-        if (!allUsers) return { ageData: [], genderData: [] };
+        if (!actualUsers) return { ageData: [], genderData: [] };
         
         const ageGroups: Record<string, number> = {};
         const genderGroups: Record<string, number> = {};
 
-        allUsers.forEach(u => {
+        actualUsers.forEach(u => {
             const age = u.ageRange || 'Not Disclosed';
             const gender = u.gender || 'Not Disclosed';
             ageGroups[age] = (ageGroups[age] || 0) + 1;
@@ -183,16 +188,16 @@ export default function MarketResearchPage() {
             ageData: Object.entries(ageGroups).map(([name, value]) => ({ name, value })),
             genderData: Object.entries(genderGroups).map(([name, value]) => ({ name, value }))
         };
-    }, [allUsers]);
+    }, [actualUsers]);
 
     const communityPerformance = React.useMemo(() => {
-        if (!allComms || !allSubscribedBiz || !allUsers) return [];
+        if (!allComms || !allSubscribedBiz || !actualUsers) return [];
 
         return allComms
             .filter(comm => comm.status !== 'inactive')
             .map(comm => {
                 const commBiz = allSubscribedBiz.filter(b => b.primaryCommunityId === comm.id);
-                const commMembers = allUsers.filter(u => u.homeCommunityId === comm.id || u.communityId === comm.id);
+                const commMembers = actualUsers.filter(u => u.homeCommunityId === comm.id || u.communityId === comm.id);
                 const totalOffenses = commMembers.reduce((acc, u) => acc + (u.offenseCount || 0), 0);
                 
                 const share = comm.revenueShare ?? (comm.type === 'topic' ? 0 : 40);
@@ -213,7 +218,7 @@ export default function MarketResearchPage() {
                     safetyIndex: totalOffenses
                 };
             });
-    }, [allComms, allSubscribedBiz, allUsers]);
+    }, [allComms, allSubscribedBiz, actualUsers]);
 
     const hotspotPerformance = React.useMemo(() => {
         if (!allComms || !allNews || !allEvents || !allTopics || !allMarketplace) return [];
@@ -250,7 +255,7 @@ export default function MarketResearchPage() {
     }, [allComms, allNews, allEvents, allTopics, allMarketplace]);
 
     const safetyClimate = React.useMemo(() => {
-        if (!allComms || !allFlags || !allReports || !allUsers) return [];
+        if (!allComms || !allFlags || !allReports || !actualUsers) return [];
 
         return allComms
             .filter(comm => comm.status !== 'inactive')
@@ -261,7 +266,7 @@ export default function MarketResearchPage() {
                 
                 const reportCount = allReports.filter(r => r.communityId === comm.id).length;
                 
-                const commMembers = allUsers.filter(u => u.homeCommunityId === comm.id);
+                const commMembers = actualUsers.filter(u => u.homeCommunityId === comm.id);
                 const memberOffenses = commMembers.reduce((acc, u) => acc + (u.offenseCount || 0), 0);
 
                 const riskScore = (criticalCount * 10) + (normalCount * 2) + (reportCount * 3) + (memberOffenses * 1);
@@ -281,7 +286,7 @@ export default function MarketResearchPage() {
                     climate
                 };
             });
-    }, [allComms, allFlags, allReports, allUsers]);
+    }, [allComms, allFlags, allReports, actualUsers]);
 
     const safetyDistribution = React.useMemo(() => {
         const counts = { Stable: 0, Volatile: 0, HighFriction: 0 };
@@ -387,8 +392,8 @@ export default function MarketResearchPage() {
                                 <Users className="h-4 w-4" />
                             </div>
                         </div>
-                        <div className="text-2xl font-black">{allUsers?.length || 0}</div>
-                        <p className="text-[10px] text-muted-foreground font-semibold">Registered user base</p>
+                        <div className="text-2xl font-black">{actualUsers.length}</div>
+                        <p className="text-[10px] text-muted-foreground font-semibold">Active registered members</p>
                     </CardContent>
                 </Card>
                 <Card className="border-t-4 border-t-emerald-500 shadow-sm hover:shadow-md transition-shadow">

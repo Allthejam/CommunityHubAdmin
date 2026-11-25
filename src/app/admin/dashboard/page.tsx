@@ -35,7 +35,7 @@ import AccountTypesChart from "@/components/admin-dashboard/account-types-chart"
 import AdvertTypesChart from "@/components/admin-dashboard/advert-types-chart";
 import { getNationalEmergencyPlansOverviewAction } from "@/lib/actions/adminEmergencyPlanActions";
 
-import { cn } from "@/lib/utils";
+import { cn, isActualMember } from "@/lib/utils";
 
 export default function AdminDashboardPage() {
     const db = useFirestore();
@@ -85,7 +85,7 @@ export default function AdminDashboardPage() {
     const urgentBroadcasts = React.useMemo(() => announcements?.filter(a => a.type === 'Standard' && a.severity === 'urgent').length || 0, [announcements]);
     const emergencyBroadcasts = React.useMemo(() => announcements?.filter(a => a.type === 'Emergency').length || 0, [announcements]);
 
-    const totalUsers = React.useMemo(() => users ? users.filter((u: any) => u.name || u.email).length : 0, [users]);
+    const totalUsers = React.useMemo(() => users ? users.filter(isActualMember).length : 0, [users]);
     const totalDeleted = deletedUsers ? deletedUsers.length : 0;
     const totalCommunities = communities ? communities.length : 0;
     const pendingApplications = applications ? applications.length : 0;
