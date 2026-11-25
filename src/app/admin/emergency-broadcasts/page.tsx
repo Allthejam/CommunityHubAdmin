@@ -42,7 +42,7 @@ import {
     Radio,
     Layers,
 } from "lucide-react"
-import { collection, query, onSnapshot, doc, updateDoc, getDocs, getDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
 import { printForensicAuditReport } from "@/lib/utils/printForensicReport";
 
@@ -650,11 +650,56 @@ export default function AdminEmergencyPage() {
             } else {
                 toast({ title: "Platform Fully Synchronized", description: "All active and regional broadcasts are current. No stale items required archiving." });
             }
+            return;
         } else {
             throw new Error(result.error);
         }
-    } catch (error: any) {
-        toast({ title: "Sweep Failed", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    } catch (serverError: any) {
+        console.warn("[Sweep] Server action sweep error, executing client-side sweep fallback:", serverError);
+        try {
+            if (!db || !user) throw serverError;
+            const now = new Date();
+            const cutoffDate = subDays(now, 14);
+
+            // Filter stale items from loaded state
+            const staleItems = announcements.filter(a => {
+                if (a.status === 'Archived') return false;
+                if (a.endDate) {
+                    const end = a.endDate.toDate ? a.endDate.toDate() : new Date(a.endDate);
+                    return !isNaN(end.getTime()) && end < now;
+                }
+                const created = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                return !isNaN(created.getTime()) && created < cutoffDate;
+            });
+
+            if (staleItems.length === 0) {
+                toast({ title: "Platform Fully Synchronized", description: "All active and regional broadcasts are current. No stale items required archiving." });
+                return;
+            }
+
+            const batch = writeBatch(db);
+            for (const item of staleItems) {
+                const docRef = doc(db, 'announcements', item.id);
+                const historyEntry = {
+                    status: 'Archived',
+                    actorId: user.uid,
+                    timestamp: new Date(),
+                    reason: 'Auto-archived: Content exceeded 14-day limit for dateless dispatches or passed expiration date.'
+                };
+                const existingHistory = Array.isArray(item.history) ? item.history : [];
+                batch.update(docRef, {
+                    status: 'Archived',
+                    history: [...existingHistory, historyEntry],
+                    updatedAt: new Date()
+                });
+            }
+
+            await batch.commit();
+            toast({ title: "Sweep Complete", description: `Archived ${staleItems.length} stale/expired broadcast(s) across community and regional feeds.` });
+        } catch (fallbackError: any) {
+            console.error("[Sweep] Fallback sweep failed:", fallbackError);
+            toast({ title: "Sweep Failed", description: serverError.message || fallbackError.message || "An unexpected error occurred.", variant: "destructive" });
+        }
     } finally {
         setIsCleaning(false);
     }
