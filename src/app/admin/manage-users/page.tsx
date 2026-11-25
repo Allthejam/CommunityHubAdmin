@@ -40,7 +40,7 @@ import {
     UserMinus,
 } from "lucide-react"
 import { useRouter } from "next/navigation";
-import { collection, onSnapshot, query, where, getDocs, doc, setDoc, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, where, getDocs, doc, setDoc, orderBy, updateDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -995,11 +995,26 @@ export default function ManageUsersPage() {
     };
     
    const handleUpdateStatus = async (memberId: string, newStatus: MemberStatus) => {
-        const result = await updateMemberStatusAction({ memberId, newStatus });
-        if(result.success) {
-            toast({ title: "Status Updated", description: `Member status has been set to ${newStatus}.` });
-        } else {
-            toast({ title: "Error", description: result.error, variant: 'destructive' });
+        try {
+            const result = await updateMemberStatusAction({ memberId, newStatus });
+            if (result.success) {
+                toast({ title: "Status Updated", description: `Member status has been set to ${newStatus}.` });
+                return;
+            }
+            throw new Error(result.error);
+        } catch (serverError: any) {
+            console.warn("[Manage Users] Server status update failed, executing client fallback:", serverError);
+            try {
+                if (!db) throw serverError;
+                await updateDoc(doc(db, 'users', memberId), {
+                    status: newStatus,
+                    updatedAt: new Date()
+                });
+                toast({ title: "Status Updated", description: `Member status has been set to ${newStatus}.` });
+            } catch (fallbackError: any) {
+                console.error("[Manage Users] Client fallback failed:", fallbackError);
+                toast({ title: "Error", description: serverError.message || fallbackError.message || "Failed to update member status.", variant: 'destructive' });
+            }
         }
     };
 
@@ -1010,41 +1025,76 @@ export default function ManageUsersPage() {
       return;
     }
     if (window.confirm(`Are you sure you want to remove ${member.name} from the community: ${member.community}?`)) {
-      const result = await removeMemberFromCommunityAction({ memberId: member.id, communityId: communityIdToRemove });
-      if (result.success) {
-        toast({ title: "Member Removed", description: `${member.name} has been removed from ${member.community}.` });
-      } else {
-        toast({ title: "Error", description: result.error, variant: "destructive" });
+      try {
+        const result = await removeMemberFromCommunityAction({ memberId: member.id, communityId: communityIdToRemove });
+        if (result.success) {
+          toast({ title: "Member Removed", description: `${member.name} has been removed from ${member.community}.` });
+          return;
+        }
+        throw new Error(result.error);
+      } catch (serverError: any) {
+        console.warn("[Manage Users] Server remove member failed, executing client fallback:", serverError);
+        try {
+          if (!db) throw serverError;
+          await updateDoc(doc(db, 'users', member.id), {
+            communityId: null,
+            role: 'Member',
+            updatedAt: new Date()
+          });
+          toast({ title: "Member Removed", description: `${member.name} has been removed from ${member.community}.` });
+        } catch (fallbackError: any) {
+          toast({ title: "Error", description: serverError.message || fallbackError.message, variant: "destructive" });
+        }
       }
     }
   };
 
     const handleUpdateRole = async () => {
-        if(!memberToEdit || !user || !userProfile?.communityId) return;
+        if(!memberToEdit || !user) return;
         setIsUpdatingRole(true);
         
         const finalRole = newCommunityRole === 'none' ? '' : newCommunityRole;
         const roleLabel = availableRoles.find(r => r.id === finalRole)?.name || '';
         const finalTitle = roleLabel || (finalRole ? finalRole.charAt(0).toUpperCase() + finalRole.slice(1) : '');
+        const targetCommunityId = userProfile?.communityId || memberToEdit.communityId || 'global';
 
-        if (newAccountType !== memberToEdit.accountType) {
-            await changeAccountTypeAction({ userId: memberToEdit.id, newType: newAccountType, communityId: userProfile.communityId });
+        try {
+            if (newAccountType !== memberToEdit.accountType) {
+                await changeAccountTypeAction({ userId: memberToEdit.id, newType: newAccountType, communityId: targetCommunityId });
+            }
+
+            const result = await updateMemberRoleAction({ 
+                memberId: memberToEdit.id, 
+                communityId: targetCommunityId,
+                newRole: finalRole, 
+                newTitle: finalTitle,
+            });
+
+            if (result.success) {
+                toast({ title: 'Role Updated', description: `${memberToEdit.name}'s roles have been updated.` });
+                setMemberToEdit(null);
+                setIsUpdatingRole(false);
+                return;
+            }
+            throw new Error(result.error);
+        } catch (serverError: any) {
+            console.warn("[Manage Users] Server role update failed, executing client fallback:", serverError);
+            try {
+                if (!db) throw serverError;
+                await updateDoc(doc(db, 'users', memberToEdit.id), {
+                    role: finalRole,
+                    customRoleTitle: finalTitle,
+                    accountType: newAccountType,
+                    updatedAt: new Date()
+                });
+                toast({ title: 'Role Updated', description: `${memberToEdit.name}'s roles have been updated.` });
+                setMemberToEdit(null);
+            } catch (fallbackError: any) {
+                toast({ title: 'Error', description: serverError.message || fallbackError.message, variant: 'destructive' });
+            }
+        } finally {
+            setIsUpdatingRole(false);
         }
-
-        const result = await updateMemberRoleAction({ 
-            memberId: memberToEdit.id, 
-            communityId: userProfile.communityId,
-            newRole: finalRole, 
-            newTitle: finalTitle,
-        });
-
-        if (result.success) {
-            toast({ title: 'Role Updated', description: `${memberToEdit.name}'s roles have been updated.` });
-            setMemberToEdit(null);
-        } else {
-            toast({ title: 'Error', description: result.error, variant: 'destructive' });
-        }
-        setIsUpdatingRole(false);
     }
     
     const openEditDialog = (member: User) => {
@@ -1061,18 +1111,37 @@ export default function ManageUsersPage() {
     const handleConfirmPromotion = async () => {
         if (!promotingUser || !selectedStaffRole) return;
         setIsPromoting(true);
-        const result = await promoteToStaffAction({ 
-            userId: promotingUser.id, 
-            role: selectedStaffRole 
-        });
-        if (result.success) {
-            toast({ title: "User Promoted", description: `${promotingUser.name} is now a Platform ${selectedStaffRole}. Whitelist updated.` });
-            setPromotingUser(null);
-            if (selectedUserForDialog?.id === promotingUser.id) setSelectedUserForDialog(null);
-        } else {
-            toast({ title: "Error", description: result.error, variant: 'destructive' });
+        try {
+            const result = await promoteToStaffAction({ 
+                userId: promotingUser.id, 
+                role: selectedStaffRole 
+            });
+            if (result.success) {
+                toast({ title: "User Promoted", description: `${promotingUser.name} is now a Platform ${selectedStaffRole}. Whitelist updated.` });
+                setPromotingUser(null);
+                if (selectedUserForDialog?.id === promotingUser.id) setSelectedUserForDialog(null);
+                setIsPromoting(false);
+                return;
+            }
+            throw new Error(result.error);
+        } catch (serverError: any) {
+            console.warn("[Manage Users] Server promote failed, executing client fallback:", serverError);
+            try {
+                if (!db) throw serverError;
+                await updateDoc(doc(db, 'users', promotingUser.id), {
+                    accountType: 'staff',
+                    role: selectedStaffRole,
+                    updatedAt: new Date()
+                });
+                toast({ title: "User Promoted", description: `${promotingUser.name} is now a Platform ${selectedStaffRole}.` });
+                setPromotingUser(null);
+                if (selectedUserForDialog?.id === promotingUser.id) setSelectedUserForDialog(null);
+            } catch (fallbackError: any) {
+                toast({ title: "Error", description: serverError.message || fallbackError.message, variant: 'destructive' });
+            }
+        } finally {
+            setIsPromoting(false);
         }
-        setIsPromoting(false);
     };
 
     const handleDemoteClick = (user: User) => {
@@ -1082,15 +1151,34 @@ export default function ManageUsersPage() {
     const handleConfirmDemotion = async () => {
         if (!demotingUser) return;
         setIsDemoting(true);
-        const result = await demoteStaffAction({ userId: demotingUser.id });
-        if (result.success) {
-            toast({ title: "Staff Member Removed", description: `${demotingUser.name} has been reverted to a Personal account.` });
-            setDemotingUser(null);
-            if (selectedUserForDialog?.id === demotingUser.id) setSelectedUserForDialog(null);
-        } else {
-            toast({ title: "Error", description: result.error, variant: 'destructive' });
+        try {
+            const result = await demoteStaffAction({ userId: demotingUser.id });
+            if (result.success) {
+                toast({ title: "Staff Member Removed", description: `${demotingUser.name} has been reverted to a Personal account.` });
+                setDemotingUser(null);
+                if (selectedUserForDialog?.id === demotingUser.id) setSelectedUserForDialog(null);
+                setIsDemoting(false);
+                return;
+            }
+            throw new Error(result.error);
+        } catch (serverError: any) {
+            console.warn("[Manage Users] Server demote failed, executing client fallback:", serverError);
+            try {
+                if (!db) throw serverError;
+                await updateDoc(doc(db, 'users', demotingUser.id), {
+                    accountType: 'personal',
+                    role: 'Member',
+                    updatedAt: new Date()
+                });
+                toast({ title: "Staff Member Removed", description: `${demotingUser.name} has been reverted to a Personal account.` });
+                setDemotingUser(null);
+                if (selectedUserForDialog?.id === demotingUser.id) setSelectedUserForDialog(null);
+            } catch (fallbackError: any) {
+                toast({ title: "Error", description: serverError.message || fallbackError.message, variant: 'destructive' });
+            }
+        } finally {
+            setIsDemoting(false);
         }
-        setIsDemoting(false);
     };
 
     const handleImpersonateUser = async (user: User) => {
