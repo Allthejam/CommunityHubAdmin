@@ -15,6 +15,11 @@ import {
   Clock,
   AlertTriangle,
   FileWarning,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Calendar,
+  ImageIcon,
 } from "lucide-react";
 import {
   collection,
@@ -137,13 +142,27 @@ export default function LeaderReportsPage() {
     try {
         const result = await updateReportStatusAction({ reportId: report.id, status, resolutionNotes: notes, resolvedBy: userProfile?.name, reportType: 'platform' });
         if(result.success) {
-            toast({ title: 'Success', description: `Report status updated.`});
+            toast({ title: 'Success', description: `Report status updated to ${status}.`});
+            return;
         } else {
             throw new Error(result.error);
         }
     } catch(error: any) {
-        console.error("Error updating status: ", error);
-        toast({ title: 'Error', description: error.message || 'Failed to update report status.', variant: 'destructive'});
+        console.warn("[Reports] Server update error, executing client fallback:", error);
+        try {
+            if (!db) throw error;
+            const updateData: any = { status, updatedAt: new Date() };
+            if (status === 'Resolved') {
+                updateData.resolvedAt = new Date();
+                updateData.resolvedBy = userProfile?.name || 'Platform Administration';
+                if (notes) updateData.resolutionNotes = notes;
+            }
+            await updateDoc(doc(db, 'platform_reports', report.id), updateData);
+            toast({ title: 'Success', description: `Report status updated to ${status}.` });
+        } catch (fallbackError: any) {
+            console.error("Error updating report status:", fallbackError);
+            toast({ title: 'Error', description: error.message || fallbackError.message || 'Failed to update report status.', variant: 'destructive'});
+        }
     }
   };
 
@@ -458,64 +477,182 @@ export default function LeaderReportsPage() {
       </div>
 
        <Dialog open={!!viewingReport} onOpenChange={() => { setViewingReport(null); setResolutionNotes(""); }}>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle>{viewingReport?.subject}</DialogTitle>
-                    <DialogDescription>
-                        Reported on {viewingReport?.createdAt ? format(viewingReport.createdAt.toDate(), "PPP 'at' p") : ""}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto p-1 pr-4">
-                    {viewingReport?.image && (
-                         <div className="relative w-full aspect-video rounded-md overflow-hidden">
-                             <Image src={viewingReport.image} alt="Report image" fill className="object-contain" />
-                        </div>
-                    )}
-                     <div className="space-y-1">
-                        <h4 className="text-sm font-semibold">Description</h4>
-                        <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">{viewingReport?.description}</div>
-                    </div>
-                     <div className="space-y-4 pt-4 border-t">
-                        <h4 className="text-sm font-semibold">Details</h4>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex items-center gap-2"><strong>Status:</strong> <StatusBadge status={viewingReport?.status!} /></div>
-                            <div className="flex items-center gap-2"><strong>Severity:</strong> <SeverityBadge severity={viewingReport?.severity!} /></div>
-                            <div><strong>Reported By:</strong> {viewingReport?.reporterName || 'Anonymous'}</div>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl border-2">
+                {viewingReport && (
+                  <>
+                    {/* Header with Severity Tint */}
+                    <div className={cn(
+                        "p-5 border-b relative",
+                        viewingReport.severity === 'Severe' 
+                            ? "bg-gradient-to-r from-rose-500/15 via-rose-500/5 to-transparent border-rose-200 dark:border-rose-900/50" 
+                            : viewingReport.severity === 'Moderate'
+                            ? "bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border-amber-200 dark:border-amber-900/50"
+                            : "bg-gradient-to-r from-sky-500/15 via-sky-500/5 to-transparent border-sky-200 dark:border-sky-900/50"
+                    )}>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <SeverityBadge severity={viewingReport.severity} />
+                                <StatusBadge status={viewingReport.status} />
+                                <span className="text-[10px] font-mono font-bold bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md">
+                                    ID: {viewingReport.id.substring(0, 8)}
+                                </span>
+                            </div>
+                            <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                                {viewingReport.subject}
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                                <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                Submitted on {viewingReport.createdAt ? format(getReportDate(viewingReport.createdAt), "PPP 'at' p") : "Unknown date"}
+                            </DialogDescription>
                         </div>
                     </div>
 
-                    {viewingReport?.status === 'Resolved' && viewingReport?.resolutionNotes && (
-                      <div className="space-y-2 pt-4 border-t">
-                        <h4 className="text-sm font-semibold">Resolution Notes</h4>
-                        {viewingReport.resolvedBy && viewingReport.resolvedAt && (
-                            <p className="text-xs text-muted-foreground">
-                                Resolved by {viewingReport.resolvedBy} on {format(viewingReport.resolvedAt.toDate(), "PPP 'at' p")}
-                            </p>
+                    {/* Scrollable Content Body */}
+                    <div className="p-5 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                        {/* 4 Quick Stat Pills */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 shadow-2xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Status</span>
+                                <StatusBadge status={viewingReport.status} />
+                            </div>
+                            <div className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 shadow-2xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Severity</span>
+                                <SeverityBadge severity={viewingReport.severity} />
+                            </div>
+                            <div className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 shadow-2xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Reported By</span>
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground truncate">
+                                    <User className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                                    <span className="truncate">{viewingReport.reporterName || 'Anonymous'}</span>
+                                </div>
+                            </div>
+                            <div className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 shadow-2xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Incident Date</span>
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Calendar className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                    <span>{viewingReport.createdAt ? format(getReportDate(viewingReport.createdAt), "dd MMM yyyy") : 'N/A'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Attached Evidence / Photo - Completely separated & protected from overlapping */}
+                        {viewingReport.image && (
+                            <div className="rounded-xl border border-sky-200/90 dark:border-sky-800/60 bg-gradient-to-b from-sky-50/60 to-slate-50/40 dark:from-sky-950/20 dark:to-slate-900/40 p-3 shadow-xs">
+                                <div className="flex items-center justify-between pb-2 mb-2 border-b border-sky-100 dark:border-sky-900/40">
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-sky-800 dark:text-sky-300">
+                                        <ImageIcon className="h-4 w-4 text-sky-600" />
+                                        <span>Incident Photo / Attached Evidence</span>
+                                    </div>
+                                    <a 
+                                        href={viewingReport.image} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-[11px] font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 flex items-center gap-1 hover:underline cursor-pointer"
+                                    >
+                                        <ExternalLink className="h-3 w-3" />
+                                        Open Full Size
+                                    </a>
+                                </div>
+                                <div className="flex items-center justify-center bg-black/5 dark:bg-black/30 rounded-lg p-2 overflow-hidden border border-sky-100/60 dark:border-sky-900/30">
+                                    <img 
+                                        src={viewingReport.image} 
+                                        alt="Report attachment" 
+                                        className="max-h-[300px] w-auto max-w-full rounded-md object-contain shadow-sm cursor-zoom-in hover:brightness-105 transition-all"
+                                        onClick={() => window.open(viewingReport.image, '_blank')}
+                                        title="Click to open full resolution in new tab"
+                                    />
+                                </div>
+                            </div>
                         )}
-                        <div className="text-sm text-muted-foreground bg-green-50 dark:bg-green-900/20 p-3 rounded-md border border-green-200 dark:border-green-800">{viewingReport.resolutionNotes}</div>
-                      </div>
-                    )}
 
-                    {(viewingReport?.status === 'In Progress' || viewingReport?.status === 'New') && (
-                        <div className="space-y-2 pt-4 border-t">
-                            <Label htmlFor="resolution-notes">Add Resolution Notes</Label>
-                            <Textarea
-                                id="resolution-notes"
-                                placeholder="Describe the actions taken and the outcome..."
-                                value={resolutionNotes}
-                                onChange={(e) => setResolutionNotes(e.target.value)}
-                                className="min-h-[100px]"
-                            />
-                             <Button onClick={handleSaveAndResolve} disabled={!resolutionNotes.trim()}>
-                                <Save className="mr-2 h-4 w-4" />
-                                Save & Resolve
-                            </Button>
+                        {/* Incident Description Card */}
+                        <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 space-y-1.5 shadow-2xs">
+                            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
+                                <FileText className="h-3.5 w-3.5 text-indigo-600" />
+                                <span>Incident Description</span>
+                            </div>
+                            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap pt-0.5">
+                                {viewingReport.description || "No written description provided."}
+                            </p>
                         </div>
-                    )}
-                </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={() => setViewingReport(null)}>Close</Button>
-                </DialogFooter>
+
+                        {/* Resolved State Information */}
+                        {viewingReport.status === 'Resolved' && viewingReport.resolutionNotes && (
+                            <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/80 bg-emerald-50/70 dark:bg-emerald-950/30 p-4 space-y-2 shadow-2xs">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1 border-b border-emerald-200/60 dark:border-emerald-800/60">
+                                    <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                        <span>Official Resolution</span>
+                                    </div>
+                                    {viewingReport.resolvedAt && (
+                                        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                            Resolved {format(getReportDate(viewingReport.resolvedAt), "PPP 'at' p")}
+                                        </span>
+                                    )}
+                                </div>
+                                {viewingReport.resolvedBy && (
+                                    <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 font-medium">
+                                        Actioned by: <strong>{viewingReport.resolvedBy}</strong>
+                                    </p>
+                                )}
+                                <div className="text-sm text-foreground/90 bg-white/90 dark:bg-emerald-950/60 p-3 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60 whitespace-pre-wrap leading-relaxed">
+                                    {viewingReport.resolutionNotes}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action Panel for New or In-Progress Reports */}
+                        {(viewingReport.status === 'In Progress' || viewingReport.status === 'New') && (
+                            <div className="rounded-xl border border-amber-200 dark:border-amber-800/70 bg-gradient-to-b from-amber-50/50 to-amber-50/20 dark:from-amber-950/30 dark:to-amber-950/10 p-4 space-y-3 shadow-2xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <Label htmlFor="resolution-notes" className="text-xs font-black uppercase tracking-wider text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                                        <CheckCircle className="h-4 w-4 text-amber-600" />
+                                        Action &amp; Resolution
+                                    </Label>
+                                    {viewingReport.status === 'New' && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs font-bold text-amber-700 border-amber-300 hover:bg-amber-100 dark:text-amber-300 dark:border-amber-700 dark:hover:bg-amber-900/50"
+                                            onClick={() => handleUpdateStatus(viewingReport, 'In Progress')}
+                                        >
+                                            <Clock className="mr-1.5 h-3.5 w-3.5" />
+                                            Acknowledge &amp; Mark In Progress
+                                        </Button>
+                                    )}
+                                </div>
+                                <Textarea
+                                    id="resolution-notes"
+                                    placeholder="Enter detailed outcome, actions taken, or instructions before closing this incident..."
+                                    value={resolutionNotes}
+                                    onChange={(e) => setResolutionNotes(e.target.value)}
+                                    className="min-h-[90px] bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800 focus-visible:ring-amber-500 text-sm"
+                                />
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                    <Button 
+                                        onClick={handleSaveAndResolve} 
+                                        disabled={!resolutionNotes.trim()}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 shadow-sm"
+                                    >
+                                        <Save className="mr-1.5 h-3.5 w-3.5" />
+                                        Save &amp; Mark as Resolved
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Clean Footer */}
+                    <DialogFooter className="p-3.5 border-t bg-muted/20 flex flex-row items-center justify-between sm:justify-between">
+                        <span className="text-[11px] text-muted-foreground font-mono">
+                            Status: <strong className="font-semibold text-foreground">{viewingReport.status}</strong>
+                        </span>
+                        <Button variant="outline" size="sm" onClick={() => setViewingReport(null)} className="h-8 font-semibold">
+                            Close
+                        </Button>
+                    </DialogFooter>
+                  </>
+                )}
             </DialogContent>
         </Dialog>
     </>
