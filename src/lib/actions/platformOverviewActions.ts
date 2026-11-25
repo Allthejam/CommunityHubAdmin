@@ -20,7 +20,7 @@ type OverviewContent = {
     accountTypes: OverviewItem[];
 }
 
-const initialContent: OverviewContent = {
+export const DEFAULT_PLATFORM_OVERVIEW_CONTENT: OverviewContent = {
     features: [
         {
             icon: "Users",
@@ -92,6 +92,7 @@ const initialContent: OverviewContent = {
     ]
 };
 
+const initialContent = DEFAULT_PLATFORM_OVERVIEW_CONTENT;
 
 export async function getPlatformOverviewContent(): Promise<ActionResponse> {
   try {
@@ -100,14 +101,26 @@ export async function getPlatformOverviewContent(): Promise<ActionResponse> {
     const docSnap = await docRef.get();
 
     if (docSnap.exists) {
-      return { success: true, data: docSnap.data() as OverviewContent };
+      const data = docSnap.data() as OverviewContent;
+      return {
+        success: true,
+        data: {
+          features: Array.isArray(data?.features) && data.features.length > 0 ? data.features : initialContent.features,
+          accountTypes: Array.isArray(data?.accountTypes) && data.accountTypes.length > 0 ? data.accountTypes : initialContent.accountTypes,
+        }
+      };
     } else {
       // Seed the document if it doesn't exist
-      await docRef.set(initialContent);
+      try {
+        await docRef.set(initialContent);
+      } catch (seedErr) {
+        console.warn("Could not seed platform_overview/content in admin:", seedErr);
+      }
       return { success: true, data: initialContent };
     }
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.warn("getPlatformOverviewContent error, returning initialContent:", error?.message);
+    return { success: true, data: initialContent };
   }
 }
 

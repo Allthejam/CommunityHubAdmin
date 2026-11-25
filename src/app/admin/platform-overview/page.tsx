@@ -27,7 +27,9 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { getPlatformOverviewContent, updatePlatformOverviewContent } from "@/lib/actions/platformOverviewActions";
+import { getPlatformOverviewContent, updatePlatformOverviewContent, DEFAULT_PLATFORM_OVERVIEW_CONTENT } from "@/lib/actions/platformOverviewActions";
+import { useFirestore } from "@/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -96,6 +98,7 @@ const EditableAccountTypeCard = ({ item, onEdit, onDelete }: { item: OverviewIte
 
 export default function PlatformOverviewPage() {
     const { toast } = useToast();
+    const firestore = useFirestore();
     const [content, setContent] = React.useState<OverviewContent | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [isSaving, setIsSaving] = React.useState(false);
@@ -106,17 +109,52 @@ export default function PlatformOverviewPage() {
     const [currentItem, setCurrentItem] = React.useState<Partial<OverviewItem>>({});
 
     React.useEffect(() => {
+        let isMounted = true;
         const loadContent = async () => {
-            const result = await getPlatformOverviewContent();
-            if (result.success && result.data) {
-                setContent(result.data);
-            } else {
-                toast({ title: "Error", description: result.error, variant: "destructive" });
+            try {
+                // First check if client Firestore has customized content
+                if (firestore) {
+                    try {
+                        const snap = await getDoc(doc(firestore, 'platform_overview', 'content'));
+                        if (snap.exists() && isMounted) {
+                            const data = snap.data() as OverviewContent;
+                            if (data && (data.features?.length || data.accountTypes?.length)) {
+                                setContent({
+                                    features: data.features || DEFAULT_PLATFORM_OVERVIEW_CONTENT.features,
+                                    accountTypes: data.accountTypes || DEFAULT_PLATFORM_OVERVIEW_CONTENT.accountTypes,
+                                });
+                                setLoading(false);
+                                return;
+                            }
+                        }
+                    } catch (clientErr) {
+                        console.warn("Client fetch of platform_overview/content:", clientErr);
+                    }
+                }
+
+                // Fallback to server action
+                const result = await getPlatformOverviewContent();
+                if (isMounted) {
+                    if (result?.success && result?.data) {
+                        setContent(result.data);
+                    } else {
+                        setContent(DEFAULT_PLATFORM_OVERVIEW_CONTENT);
+                    }
+                }
+            } catch (err: any) {
+                console.error("Error loading platform overview content:", err);
+                if (isMounted) {
+                    setContent(DEFAULT_PLATFORM_OVERVIEW_CONTENT);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
-            setLoading(false);
         };
         loadContent();
-    }, [toast]);
+        return () => { isMounted = false; };
+    }, [firestore]);
 
     const handleEdit = (section: 'features' | 'accountTypes', index: number) => {
         if (!content) return;
@@ -163,11 +201,35 @@ export default function PlatformOverviewPage() {
     const handleSaveAll = async () => {
         if (!content) return;
         setIsSaving(true);
-        const result = await updatePlatformOverviewContent(content);
-        if (result.success) {
+        let saved = false;
+
+        // Try server action first
+        try {
+            const result = await updatePlatformOverviewContent(content);
+            if (result.success) {
+                saved = true;
+            } else {
+                console.warn("Server action failed to save overview content, trying client Firestore:", result.error);
+            }
+        } catch (serverErr) {
+            console.warn("Server action exception, trying client Firestore:", serverErr);
+        }
+
+        // Fallback to client firestore if server action was rejected or failed
+        if (!saved && firestore) {
+            try {
+                await setDoc(doc(firestore, 'platform_overview', 'content'), content, { merge: true });
+                saved = true;
+            } catch (clientErr: any) {
+                console.error("Client Firestore save failed:", clientErr);
+                toast({ title: "Save Error", description: clientErr?.message || "Failed to save changes", variant: "destructive" });
+            }
+        }
+
+        if (saved) {
             toast({ title: "Success", description: "Platform overview has been saved." });
-        } else {
-             toast({ title: "Error", description: result.error, variant: "destructive" });
+        } else if (!firestore) {
+            toast({ title: "Error", description: "Failed to save platform overview content.", variant: "destructive" });
         }
         setIsSaving(false);
     }
