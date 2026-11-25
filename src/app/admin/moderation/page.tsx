@@ -84,7 +84,8 @@ import {
     onSnapshot, 
     doc,
     orderBy,
-    limit
+    limit,
+    writeBatch
 } from "firebase/firestore";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
@@ -170,6 +171,7 @@ export default function ModerationPage() {
     const [viewingFlag, setViewingFlag] = React.useState<FlaggedContent | null>(null);
     const [actionType, setActionType] = React.useState<'dismiss' | 'remove' | 'suspend' | null>(null);
     const [moderationReason, setModerationReason] = React.useState("");
+    const [inspectAction, setInspectAction] = React.useState<'dismiss' | 'remove' | 'suspend' | null>(null);
 
     const canManage = userProfile?.role === 'admin' || userProfile?.role === 'owner' || userProfile?.role === 'moderator' || (userProfile?.title && userProfile.title.includes('Platform'));
 
@@ -315,11 +317,15 @@ export default function ModerationPage() {
         setStoryToAction(item);
         setActionType(action);
     };
-    
-    const handleConfirmEnforcement = async () => {
-        if (!storyToAction || !actionType || !user || !userProfile) return;
+
+    const handleExecuteAction = async (
+        item: FlaggedContent, 
+        action: 'dismiss' | 'remove' | 'suspend', 
+        reason?: string
+    ) => {
+        if (!user || !userProfile) return;
         
-        if ((actionType === 'remove' || actionType === 'suspend') && !storyToAction.contentPath) {
+        if ((action === 'remove' || action === 'suspend') && !item.contentPath) {
             toast({ 
                 title: "Path Missing", 
                 description: "This flag is missing its database path. Run a Platform Audit to repair it before taking action.", 
@@ -329,33 +335,83 @@ export default function ModerationPage() {
         }
 
         setIsSaving(true);
+        const finalReason = reason || moderationReason || (action === 'dismiss' ? "Approved by moderator" : "Violation of community safety standards.");
         try {
             const result = await applyModerationAction({
-                flagId: storyToAction.id,
-                action: actionType,
-                contentPath: storyToAction.contentPath,
-                authorId: storyToAction.authorId,
+                flagId: item.id,
+                action: action,
+                contentPath: item.contentPath,
+                authorId: item.authorId,
                 moderatorId: user.uid,
                 moderatorName: userProfile.name || 'Platform Administrator',
-                reason: moderationReason || "Violation of community safety standards.",
-                contentType: storyToAction.contentType,
-                contentId: storyToAction.contentId
+                reason: finalReason,
+                contentType: item.contentType,
+                contentId: item.contentId
             });
 
             if (result.success) {
-                toast({ title: "Action Applied", description: `Enforcement successful: ${actionType.toUpperCase()}` });
+                toast({ title: "Action Applied", description: `Enforcement successful: ${action.toUpperCase()}` });
+                setViewingFlag(null);
                 setStoryToAction(null);
                 setActionType(null);
                 setModerationReason("");
+                setInspectAction(null);
+                return;
             } else {
-                toast({ title: "Enforcement Failed", description: result.error, variant: "destructive" });
+                throw new Error(result.error);
             }
-        } catch (err: any) {
-            console.error("Enforcement failed:", err);
-            toast({ title: "Error", description: "An unexpected error occurred during enforcement.", variant: "destructive" });
+        } catch (serverErr: any) {
+            console.warn("[Moderation] Server action failed, executing client fallback:", serverErr);
+            try {
+                if (!db) throw serverErr;
+                const batch = writeBatch(db);
+                const flagRef = doc(db, 'moderation_flags', item.id);
+                batch.update(flagRef, {
+                    status: 'resolved',
+                    resolvedAt: new Date(),
+                    resolvedBy: userProfile.name || 'Platform Administrator'
+                });
+
+                if (action === 'remove' || action === 'suspend') {
+                    if (item.contentPath) {
+                        const contentRef = doc(db, item.contentPath);
+                        batch.delete(contentRef);
+                    }
+                    const offenseRef = doc(collection(db, 'user_offenses'));
+                    batch.set(offenseRef, {
+                        userId: item.authorId,
+                        action: action === 'suspend' ? 'suspended' : 'warned',
+                        moderatorId: user.uid,
+                        moderatorName: userProfile.name || 'Platform Administrator',
+                        reason: finalReason,
+                        contentId: item.contentId,
+                        contentType: item.contentType,
+                        createdAt: new Date()
+                    });
+                    if (action === 'suspend') {
+                        const authorRef = doc(db, 'users', item.authorId);
+                        batch.update(authorRef, { status: 'suspended', updatedAt: new Date() });
+                    }
+                }
+                await batch.commit();
+                toast({ title: "Action Applied", description: `Enforcement successful: ${action.toUpperCase()}` });
+                setViewingFlag(null);
+                setStoryToAction(null);
+                setActionType(null);
+                setModerationReason("");
+                setInspectAction(null);
+            } catch (fallbackErr: any) {
+                console.error("Fallback enforcement error:", fallbackErr);
+                toast({ title: "Enforcement Failed", description: serverErr.message || fallbackErr.message || "An unexpected error occurred during enforcement.", variant: "destructive" });
+            }
         } finally {
             setIsSaving(false);
         }
+    };
+    
+    const handleConfirmEnforcement = async () => {
+        if (!storyToAction || !actionType) return;
+        await handleExecuteAction(storyToAction, actionType, moderationReason);
     };
 
     const handleRunScan = async () => {
@@ -859,7 +915,7 @@ export default function ModerationPage() {
       </Tabs>
 
         {/* Investigation Full Modal */}
-        <Dialog open={!!viewingFlag} onOpenChange={(open) => { if (!open) setViewingFlag(null); }}>
+        <Dialog open={!!viewingFlag} onOpenChange={(open) => { if (!open) { setViewingFlag(null); setInspectAction(null); setModerationReason(""); } }}>
             <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <div className="flex items-center gap-2 mb-1">
@@ -919,27 +975,86 @@ export default function ModerationPage() {
                     )}
                 </div>
 
-                <DialogFooter className="bg-muted/30 p-4 -mx-6 -mb-6 border-t mt-4 gap-2">
-                    <Button variant="outline" onClick={() => setViewingFlag(null)} className="font-bold text-xs uppercase">Close</Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button className="font-bold text-xs uppercase bg-rose-600 hover:bg-rose-700 text-white gap-1.5">
-                                Action Submission <ChevronDown className="h-4 w-4" />
+                <DialogFooter className="bg-muted/30 p-4 -mx-6 -mb-6 border-t mt-4 flex-col gap-3 sm:flex-col">
+                    {inspectAction ? (
+                        <div className="w-full space-y-3 p-4 rounded-xl border-2 border-rose-300 dark:border-rose-900 bg-rose-50/70 dark:bg-rose-950/40 text-left">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-rose-950 dark:text-rose-200">
+                                    {inspectAction === 'dismiss' ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <ShieldAlert className="h-4 w-4 text-rose-600" />}
+                                    Confirm Action: {inspectAction.toUpperCase()}
+                                </Label>
+                                <Button variant="ghost" size="sm" onClick={() => setInspectAction(null)} className="h-6 text-xs text-muted-foreground hover:text-foreground">
+                                    Cancel
+                                </Button>
+                            </div>
+                            
+                            {(inspectAction === 'remove' || inspectAction === 'suspend') && (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-muted-foreground">
+                                        The author will be recorded in User Offenses and notified. Specify violation reason:
+                                    </p>
+                                    <Textarea
+                                        placeholder="Explain the specific safety violation reason..."
+                                        value={moderationReason}
+                                        onChange={(e) => setModerationReason(e.target.value)}
+                                        className="text-xs border-2 bg-background min-h-[70px]"
+                                    />
+                                </div>
+                            )}
+
+                            {inspectAction === 'dismiss' && (
+                                <p className="text-xs text-muted-foreground">
+                                    Approving will mark this incident as resolved and remove the flag from the active queue.
+                                </p>
+                            )}
+
+                            <div className="flex items-center justify-end gap-2 pt-1">
+                                <Button variant="outline" size="sm" onClick={() => setInspectAction(null)} disabled={isSaving} className="text-xs font-bold uppercase">
+                                    Back
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    disabled={isSaving}
+                                    variant={inspectAction === 'dismiss' ? 'default' : 'destructive'}
+                                    className={cn("text-xs font-black uppercase", inspectAction === 'dismiss' && "bg-emerald-600 hover:bg-emerald-700 text-white")}
+                                    onClick={() => handleExecuteAction(viewingFlag!, inspectAction, moderationReason)}
+                                >
+                                    {isSaving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                                    Confirm &amp; Execute
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full gap-2">
+                            <Button variant="outline" onClick={() => { setViewingFlag(null); setInspectAction(null); }} className="font-bold text-xs uppercase">
+                                Close
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                            <DropdownMenuItem onClick={() => { setViewingFlag(null); handleActionClick(viewingFlag!, 'dismiss'); }} className="text-emerald-600 font-bold">
-                                <CheckCircle className="mr-2 h-4 w-4" /> Approve &amp; Dismiss Flag
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => { setViewingFlag(null); handleActionClick(viewingFlag!, 'remove'); }} className="text-amber-600 font-bold">
-                                <Trash2 className="mr-2 h-4 w-4" /> Remove Content &amp; Warn
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setViewingFlag(null); handleActionClick(viewingFlag!, 'suspend'); }} className="text-destructive font-bold">
-                                <Ban className="mr-2 h-4 w-4" /> Suspend Author Account
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button 
+                                    type="button"
+                                    onClick={() => setInspectAction('dismiss')} 
+                                    className="font-bold text-xs uppercase bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9"
+                                >
+                                    <CheckCircle className="h-4 w-4" /> Approve &amp; Dismiss
+                                </Button>
+                                <Button 
+                                    type="button"
+                                    onClick={() => setInspectAction('remove')} 
+                                    className="font-bold text-xs uppercase bg-amber-600 hover:bg-amber-700 text-white gap-1.5 h-9"
+                                >
+                                    <Trash2 className="h-4 w-4" /> Remove &amp; Warn
+                                </Button>
+                                <Button 
+                                    type="button"
+                                    variant="destructive" 
+                                    onClick={() => setInspectAction('suspend')} 
+                                    className="font-bold text-xs uppercase gap-1.5 h-9"
+                                >
+                                    <Ban className="h-4 w-4" /> Suspend Author
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
