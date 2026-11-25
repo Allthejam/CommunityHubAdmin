@@ -107,7 +107,7 @@ import { updateMemberStatusAction } from "@/lib/actions/memberActions";
 import { changeAccountTypeAction, runImpersonateUser } from "@/lib/actions/userActions";
 import { PaginationControls } from "@/components/ui/pagination";
 import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
+import { cn, isDemoUser } from '@/lib/utils';
 import { appointCommunityLeaderAction } from "@/lib/actions/teamActions";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "cmdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -917,6 +917,9 @@ export default function ManageUsersPage() {
             
             // DATA HYGIENE: Skip records that lack essential identifiers (ghost documents or failed deletions)
             if (!data.name && !data.email) return;
+
+            // Remove demo accounts (Demo Resident, Demo Community Leader, etc.) to keep active directory clean and accurate
+            if (isDemoUser(data)) return;
 
             usersData.push({ 
                 id: doc.id,
