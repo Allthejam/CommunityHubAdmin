@@ -56,6 +56,7 @@ import {
   Fingerprint,
   Megaphone,
   Stethoscope,
+  Video,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -129,6 +130,7 @@ const adminSections: SiteMapSection[] = [
       { label: "Instruction Manuals", href: "/admin/marketing/manuals", icon: BookOpen, description: "Manage user guides and help content." },
       { label: "Image Gallery", href: "/admin/marketing/gallery", icon: GalleryHorizontal, description: "Central repository for marketing assets." },
       { label: "Audio Hub", href: "/admin/audio-hub", icon: Mic, description: "Broadcast voice-synthesized community briefings." },
+      { label: "Video Studio", href: "/admin/marketing/video-studio", icon: Video, description: "Create promotional explainers and social reels with AI audio sync." },
       { label: "Platform Overview", href: "/admin/platform-overview", icon: Presentation, description: "Edit landing page content and features." },
       { label: "Careers Board", href: "/admin/careers", icon: Briefcase, description: "Manage platform vacancies and recruitment lifecycles." },
     ]

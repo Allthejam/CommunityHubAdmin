@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Community Hub — Marketing Video Studio (16:9 & 9:16)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            forest: {
+              950: '#022c22',
+              900: '#064e3b',
+              800: '#065f46',
+              700: '#047857',
+              600: '#059669',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: #022c22;
+      color: #f8fafc;
+      margin: 0;
+      overflow-x: hidden;
+    }
+
+    @keyframes fadeSlideUp {
+      0% { opacity: 0; transform: translateY(16px) scale(0.985); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+
+    @keyframes drawBoundary {
+      0% { stroke-dashoffset: 620; }
+      100% { stroke-dashoffset: 0; }
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.85); opacity: 0.85; }
+      100% { transform: scale(1.9); opacity: 0; }
+    }
+
+    .animate-scene-in { animation: fadeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .animate-stagger-1 { opacity: 0; animation: fadeSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards; }
+    .animate-stagger-2 { opacity: 0; animation: fadeSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.22s forwards; }
+    .animate-stagger-3 { opacity: 0; animation: fadeSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.34s forwards; }
+    .animate-float { animation: floatSlow 3.8s ease-in-out infinite; }
+
+    .geojson-path {
+      stroke-dasharray: 620;
+      stroke-dashoffset: 620;
+      animation: drawBoundary 2.2s ease-out 0.15s forwards;
+    }
+
+    .gps-pulse {
+      transform-origin: center;
+      animation: pulseRing 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    /* Clean Screen-Record Mode */
+    body.record-mode .studio-chrome { display: none !important; }
+    body.record-mode #stage-wrapper {
+      padding: 0 !important;
+      height: 100vh !important;
+      max-width: 100vw !important;
+      background: #022c22 !important;
+    }
+    body.record-mode #video-frame.mode-16x9 {
+      border-radius: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-height: 100vh !important;
+      aspect-ratio: auto !important;
+    }
+    body.record-mode #video-frame.mode-9x16 {
+      border-radius: 0 !important;
+      border: none !important;
+      height: 100vh !important;
+      max-height: 100vh !important;
+    }
+    body.record-mode #exit-record-btn {
+      display: flex !important;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    body.record-mode #exit-record-btn:hover,
+    body.record-mode #exit-record-btn:focus { opacity: 1; }
+
+    /* Custom Range Slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      margin-top: -5px;
+      background-color: #f59e0b;
+      height: 16px;
+      width: 16px;
+      border-radius: 999px;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-forest-950 text-slate-50 select-none">
+
+  <!-- Hidden Audio & File Inputs -->
+  <audio id="kore-audio-player" preload="auto"></audio>
+  <input id="kore-file-input" type="file" accept="audio/*" class="hidden" />
+
+  <!-- Top Studio Header -->
+  <header class="studio-chrome bg-forest-900/95 border-b border-emerald-800/70 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-lg z-30">
+    <!-- Brand & Format Switcher -->
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-amber-500 text-forest-950 flex items-center justify-center font-extrabold text-lg shadow">CH</div>
+        <div>
+          <h1 class="text-sm font-bold text-white leading-tight">Community Hub Studio</h1>
+          <p class="text-[11px] text-emerald-200/80">my-community-hub.co.uk</p>
+        </div>
+      </div>
+
+      <!-- Format Toggle (16:9 90s vs 9:16 30s) -->
+      <div class="flex items-center bg-forest-950 p-1 rounded-xl border border-emerald-700/60">
+        <button id="btn-mode-16x9" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-forest-950 shadow transition cursor-pointer">
+          🖥️ 90s Explainer (16:9)
+        </button>
+        <button id="btn-mode-9x16" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-200 hover:text-white transition cursor-pointer">
+          📱 30s Social Reel (9:16)
+        </button>
+      </div>
+    </div>
+
+    <!-- Action Drawers & Voice / Screen-Record Controls -->
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Load Kore Audio -->
+      <button id="btn-load-kore" type="button" class="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white shadow transition cursor-pointer" title="Load MP3 or WAV generated with Kore in Google AI Studio">
+        <span>🎙️</span>
+        <span id="kore-btn-label">Load Kore Audio</span>
+      </button>
+
+      <!-- Copy Kore Script Drawer Toggle -->
+      <button id="btn-toggle-script" type="button" class="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-forest-800 hover:bg-forest-700 text-emerald-100 border border-emerald-700/60 transition cursor-pointer">
+        <span>📋</span>
+        <span>Kore Script</span>
+      </button>
+
+      <!-- 6 App Screenshots Drawer Toggle -->
+      <button id="btn-toggle-shots" type="button" class="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-forest-800 hover:bg-forest-700 text-emerald-100 border border-emerald-700/60 transition cursor-pointer">
+        <span>🖼️</span>
+        <span id="shots-btn-label">App Screens (0/6)</span>
+      </button>
+
+      <!-- Browser Voice Fallback -->
+      <button id="btn-voice" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 bg-forest-800 hover:bg-forest-700 text-emerald-100 border border-emerald-700/60 transition cursor-pointer" title="Toggle built-in UK voice fallback when no Kore audio file is loaded">
+        <span id="voice-icon">🔇</span>
+        <span id="voice-label">Fallback VO: OFF</span>
+      </button>
+
+      <!-- Subtitles Toggle -->
+      <button id="btn-captions" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 bg-forest-800 hover:bg-forest-700 text-emerald-100 border border-emerald-700/60 transition cursor-pointer">
+        <span>💬</span>
+        <span id="captions-label">Subtitles: ON</span>
+      </button>
+
+      <!-- Clean Screen-Record Mode -->
+      <button id="btn-record-mode" type="button" class="px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-forest-950 shadow-md transition cursor-pointer">
+        <span>⏺</span>
+        <span>Clean Screen-Record</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Status Strip -->
+  <div class="studio-chrome bg-forest-950 border-b border-emerald-900/80 px-4 py-1.5 text-center text-xs text-emerald-200/90 flex flex-wrap items-center justify-center gap-2">
+    <span id="audio-status-badge" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold uppercase tracking-wider text-[10px]">Ready</span>
+    <span id="audio-status-text">Load your Kore MP3/WAV from Google AI Studio or drop in your 6 logged-in app screenshots below.</span>
+  </div>
+
+  <!-- Collapsible Drawer 1: Copy-Paste Kore Script -->
+  <section id="drawer-script" class="studio-chrome hidden bg-slate-900/95 border-b border-emerald-800/80 px-4 py-4 z-20">
+    <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div class="space-y-1 flex-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-purple-300" id="script-drawer-title">90-Second Kore Voice-Over Script (Google AI Studio)</span>
+          <span id="copy-toast" class="hidden text-[11px] font-bold text-emerald-400">✓ Copied to clipboard!</span>
+        </div>
+        <p class="text-xs text-slate-300">Paste this into <strong>aistudio.google.com</strong> with voice set to <strong>Kore (Female)</strong>, download the WAV/MP3, then click <strong>Load Kore Audio</strong> above.</p>
+        <textarea id="kore-script-box" readonly rows="4" class="w-full mt-2 bg-slate-950 text-emerald-100 text-xs p-3 rounded-xl border border-emerald-800/70 focus:outline-none leading-relaxed"></textarea>
+      </div>
+      <div class="flex sm:flex-col gap-2 shrink-0">
+        <button id="btn-copy-script" type="button" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow cursor-pointer transition">
+          📋 Copy Script
+        </button>
+        <button id="btn-close-script" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Collapsible Drawer 2: 6 Real App Screenshots Uploader -->
+  <section id="drawer-shots" class="studio-chrome hidden bg-slate-900/95 border-b border-emerald-800/80 px-4 py-4 z-20">
+    <div class="max-w-6xl mx-auto space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-amber-300">Behind-the-Login App Screenshots (Auto-Synced to Phone Mockups)</h2>
+          <p class="text-xs text-slate-300">Click any slot below to upload your real PNG/JPG screen captures. Empty slots automatically show clean vector UI previews.</p>
+        </div>
+        <button id="btn-close-shots" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer">
+          Done
+        </button>
+      </div>
+
+      <div id="shots-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Hover-Only Exit Button in Clean Screen-Record Mode -->
+  <button id="exit-record-btn" type="button" class="hidden fixed top-4 right-4 z-50 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-semibold border border-white/20 shadow-xl backdrop-blur-md items-center gap-2 cursor-pointer">
+    <span>✕</span>
+    <span>Exit Screen-Record Mode</span>
+  </button>
+
+  <!-- Main Video Canvas Stage -->
+  <main id="stage-wrapper" class="flex-1 flex items-center justify-center p-3 sm:p-5">
+    <div id="video-frame" class="mode-16x9 relative w-full max-w-6xl aspect-video rounded-2xl overflow-hidden shadow-2xl border border-emerald-700/60 bg-gradient-to-br from-forest-950 via-forest-900 to-slate-950 flex flex-col justify-between transition-all duration-300">
+
+      <!-- Ambient Glows -->
+      <div class="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-emerald-500/15 blur-3xl"></div>
+      <div class="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-amber-500/15 blur-3xl"></div>
+
+      <!-- Top Watermark & Scene Badge -->
+      <div id="frame-top-bar" class="relative z-20 flex items-center justify-between px-5 pt-4">
+        <div class="flex items-center gap-2 bg-forest-950/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span class="text-xs font-bold tracking-wide text-white">Community Hub</span>
+          <span id="watermark-domain" class="text-xs text-emerald-300">• my-community-hub.co.uk</span>
+        </div>
+
+        <div id="scene-badge" class="bg-forest-950/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-emerald-500/30 text-[11px] font-semibold text-emerald-200">
+          Scene 1 of 6 • The Hook
+        </div>
+      </div>
+
+      <!-- Dynamic Scene Content -->
+      <div id="scene-stage" class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-10 py-3 overflow-hidden">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Subtitle Overlay -->
+      <div id="subtitle-container" class="relative z-20 px-5 pb-4 flex justify-center">
+        <div id="subtitle-box" class="max-w-4xl bg-slate-950/85 backdrop-blur-md border border-white/15 px-4 py-2.5 rounded-2xl shadow-xl text-center">
+          <p id="subtitle-text" class="text-sm sm:text-base font-medium text-white leading-snug"></p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Bottom Timeline & Scene Jump Controls -->
+  <footer class="studio-chrome bg-forest-900/95 border-t border-emerald-800/70 px-4 py-3 z-30">
+    <div class="max-w-6xl mx-auto flex flex-col gap-2.5">
+      <div class="flex items-center gap-3">
+        <button id="btn-play-pause" type="button" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-forest-950 font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow cursor-pointer transition min-w-[145px] justify-center">
+          <span id="play-icon">▶</span>
+          <span id="play-label">Play 90s Promo</span>
+        </button>
+
+        <button id="btn-restart" type="button" class="px-3 py-2 rounded-xl bg-forest-800 hover:bg-forest-700 text-emerald-100 font-semibold text-xs border border-emerald-700/60 cursor-pointer transition">
+          ↺ Restart
+        </button>
+
+        <span id="time-current" class="text-xs font-mono text-emerald-200 w-10 text-right">0:00</span>
+        <input id="timeline-slider" type="range" min="0" max="90" step="0.1" value="0" aria-label="Timeline Scrubber" class="flex-1" />
+        <span id="time-total" class="text-xs font-mono text-emerald-300/80 w-10">1:30</span>
+      </div>
+
+      <div id="scene-buttons-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <!-- Populated dynamically for 6 scenes (90s) or 4 clips (30s) -->
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // 6 Behind-the-Login Screenshot Slots
+    const SCREENSHOT_SLOTS = [
+      { key: 'home', label: '1. Morning Briefing', route: '/home' },
+      { key: 'notifications', label: '2. Notifications', route: '/notifications' },
+      { key: 'communities', label: '3. Geofenced Map', route: '/communities' },
+      { key: 'travel', label: '4. 30-Mi Roadworks', route: '/travel' },
+      { key: 'shopping', label: '5. High Street & Events', route: '/shopping' },
+      { key: 'emergency', label: '6. CEAP Resilience', route: '/emergency' }
+    ];
+
+    const uploadedScreenshots = {
+      home: null,
+      notifications: null,
+      communities: null,
+      travel: null,
+      shopping: null,
+      emergency: null
+    };
+
+    // Helper: Render Phone Frame with Uploaded Screenshot OR Crisp Vector Fallback
+    function renderPhoneMockup(slotKey, fallbackHtml, compact = false) {
+      const imgUrl = uploadedScreenshots[slotKey];
+      const frameSize = compact ? 'w-56 h-80' : 'w-60 sm:w-64 h-80 sm:h-[340px]';
+
+      if (imgUrl) {
+        return `
+          <div class="${frameSize} mx-auto rounded-[28px] p-2 bg-slate-900 border-2 border-amber-400 shadow-2xl flex flex-col overflow-hidden animate-float">
+            <div class="w-16 h-1.5 bg-slate-700 rounded-full mx-auto mb-1.5 shrink-0"></div>
+            <div class="flex-1 rounded-[20px] overflow-hidden bg-slate-950 relative">
+              <img src="${imgUrl}" alt="Community Hub ${slotKey}" class="w-full h-full object-cover object-top" />
+              <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-forest-950/85 text-amber-300 text-[9px] font-bold border border-amber-400/40">Live App</span>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="${frameSize} mx-auto rounded-[28px] p-2.5 bg-slate-900 border-2 border-emerald-400/60 shadow-2xl flex flex-col overflow-hidden animate-float">
+          <div class="w-16 h-1.5 bg-slate-700 rounded-full mx-auto mb-2 shrink-0"></div>
+          <div class="flex-1 rounded-[18px] bg-white text-slate-900 p-3 overflow-hidden flex flex-col justify-between">
+            ${fallbackHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    // Copy-Paste Kore Scripts
+    const KORE_SCRIPTS = {
+      '16x9': `Trying to keep up with your town shouldn't mean scrolling through five noisy social media groups... only to miss a road closure, a school alert, or a local event.\n\nMeet Community Hub — your town's digital front door. Every morning at 8 A M, your Daily Briefing brings everything that matters into one clean bulletin: live local weather, roadworks within 30 miles, school closures, holiday countdowns, and timely notices from your community leaders.\n\nWhether you're at home or travelling nearby, our interactive boundary map lets you tap "Locate Me" with live mobile GPS or search any postcode — automatically welcoming you into mapped local hubs.\n\nBeyond daily essentials, explore your Virtual High Street to shop independent local stores with Community Courier delivery, discover What's On guides and events, find local jobs, or use neighbour-to-neighbour Buy, Swap & Sell and Lost & Found boards — without the spam.\n\nHave your say in local polls and petitions, receive verified council and National Park broadcasts, and rely on a built-in Civil Resilience Engine when floods or power outages strike — backed by local volunteers and over forty percent revenue share reinvested into your town.\n\nEverything your town needs, in one trusted place. Join your local hub — or step up as a Community Leader — today at my community hub dot co dot U K.`,
+      '9x16': `One app for everything happening in your town... without the social media noise.\n\nGet your 8 A M Daily Briefing with weather, 30-mile roadworks, and school alerts, plus a live G P S community map.\n\nShop your Virtual High Street, vote in local polls, and stay protected with real-time emergency alerts.\n\nJoin your community today at my community hub dot co dot U K.`
+    };
+
+    // 90-Second Widescreen (16:9) Scenes
+    const SCENES_16X9 = [
+      {
+        id: 0,
+        shortTitle: '1. The Hook',
+        timeLabel: '0:00 – 0:12',
+        badge: 'Scene 1 of 6 • The Hook (0:00 – 0:12)',
+        start: 0,
+        end: 12,
+        voiceover: "Trying to keep up with your town shouldn't mean scrolling through five noisy social media groups—only to miss a road closure, a school alert, or a local event.",
+        render: () => `
+          <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-6 items-center animate-scene-in">
+            <div class="md:col-span-5 space-y-3.5">
+              <span class="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold uppercase tracking-wider">Cut Through The Noise</span>
+              <h2 class="text-2xl sm:text-4xl font-extrabold text-white leading-tight">Tired of noisy feeds &amp; missed local updates?</h2>
+              <p class="text-sm text-emerald-100/85 leading-relaxed">Replace five cluttered social groups with one calm, verified digital town square for UK towns and villages.</p>
+            </div>
+            <div class="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+              <div class="bg-slate-900/85 border border-rose-500/35 rounded-2xl p-4 space-y-2.5 opacity-85 animate-stagger-1">
+                <div class="flex items-center justify-between text-xs font-bold text-rose-300"><span>✕ 5 Noisy Social Groups</span><span>99+ Unread</span></div>
+                <div class="bg-slate-800/90 rounded-xl p-2.5 text-xs text-slate-300 border border-slate-700">"Anyone know why the high street is closed??" <span class="text-slate-500 block mt-1">47 conflicting replies</span></div>
+                <div class="bg-slate-800/90 rounded-xl p-2.5 text-xs text-slate-300 border border-slate-700">"Is the primary school open today?" <span class="text-slate-500 block mt-1">Buried under spam</span></div>
+                <div class="bg-slate-800/90 rounded-xl p-2 text-xs text-slate-400 line-through">Local Charity Event — Yesterday</div>
+              </div>
+              <div class="animate-stagger-2">
+                ${renderPhoneMockup('home', `
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span class="text-xs font-extrabold text-forest-900">Community Hub</span>
+                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">/home</span>
+                  </div>
+                  <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1">
+                    <div class="text-[11px] font-extrabold text-amber-900">☀️ 8:00 AM Daily Briefing</div>
+                    <div class="text-[10px] text-slate-700">14°C Dry • 30-Mi Roadworks • All Schools Open</div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-1.5 text-[10px] font-bold text-forest-900">
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2">🗺️ Live GPS Map</div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2">🛍️ High Street</div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2">🗳️ Local Polls</div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2">🛡️ Resilience</div>
+                  </div>
+                  <div class="text-[10px] text-center text-slate-400 font-semibold">my-community-hub.co.uk</div>
+                `)}
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        id: 1,
+        shortTitle: '2. 8 AM Briefing',
+        timeLabel: '0:12 – 0:28',
+        badge: 'Scene 2 of 6 • 8:00 AM Daily Morning Briefing (0:12 – 0:28)',
+        start: 12,
+        end: 28,
+        voiceover: "Meet Community Hub—your town's digital front door. Every morning at 8:00 AM, your Daily Briefing brings everything that matters into one clean bulletin: live local weather, roadworks within 30 miles, school closures, holiday countdowns, and timely notices from your community leaders.",
+        render: () => `
+          <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-6 items-center animate-scene-in">
+            <div class="md:col-span-5 space-y-3.5">
+              <span class="inline-block px-3 py-1 rounded-full bg-amber-500 text-forest-950 text-xs font-extrabold">⏰ 8:00 AM Daily Bulletin</span>
+              <h2 class="text-2xl sm:text-4xl font-extrabold text-white leading-tight">Your Town's Digital Front Door</h2>
+              <p class="text-sm text-emerald-100/85 leading-relaxed">One morning bulletin in your Notification Center—including temporary Leader Public Notices that auto-clear after 20 hours.</p>
+              <div class="grid grid-cols-2 gap-2 text-xs font-semibold text-emerald-100">
+                <div class="bg-forest-900/90 border border-emerald-700/60 rounded-xl p-2.5">🌤️ Met Office Warnings</div>
+                <div class="bg-forest-900/90 border border-emerald-700/60 rounded-xl p-2.5">🚧 30-Mile Roadworks</div>
+                <div class="bg-forest-900/90 border border-emerald-700/60 rounded-xl p-2.5">🏫 School &amp; Term Alerts</div>
+                <div class="bg-forest-900/90 border border-emerald-700/60 rounded-xl p-2.5">📢 20h Leader Notices</div>
+              </div>
+            </div>
+            <div class="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+              <div class="animate-stagger-1">
+                ${renderPhoneMockup('notifications', `
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <span class="text-xs font-extrabold text-forest-900">Notification Center</span>
+                    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold">Daily Briefing</span>
+                  </div>
+                  <div class="space-y-1.5 text-[10px]">
+                    <div class="p-2 rounded-lg bg-sky-50 border border-sky-200"><strong>Weather:</strong> 13°C Dry, zero storm alerts</div>
+                    <div class="p-2 rounded-lg bg-amber-50 border border-amber-200"><strong>Roadworks (/travel):</strong> Scottish Road Works Register — 2 active within 30 mi</div>
+                    <div class="p-2 rounded-lg bg-emerald-50 border border-emerald-200"><strong>Schools:</strong> All Open • 5-day holiday countdown</div>
+                    <div class="p-2 rounded-lg bg-purple-50 border border-purple-200"><strong>Leader Notice:</strong> Town Hall 7 PM (Auto-clears 20h)</div>
+                  </div>
+                  <div class="text-[9px] text-center font-bold text-forest-800">Tap any card to jump to /travel →</div>
+                `)}
+              </div>
+              <div class="hidden sm:block animate-stagger-2">
+                ${renderPhoneMockup('travel', `
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <span class="text-xs font-extrabold text-forest-900">30-Mile Travel</span>
+                    <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold">/travel</span>
+                  </div>
+                  <div class="space-y-2 text-[10px]">
+                    <div class="p-2 rounded-lg bg-amber-50 border border-amber-200">
+                      <div class="font-bold text-amber-900">🚧 A93 Carriageway Works</div>
+                      <div class="text-slate-600">Scottish Road Works Register • Live</div>
+                    </div>
+                    <div class="p-2 rounded-lg bg-rose-50 border border-rose-200">
+                      <div class="font-bold text-rose-900">⚠️ Resident Hazard Report</div>
+                      <div class="text-slate-600">Fallen branch cleared near Bridge St</div>
+                    </div>
+                    <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 font-semibold text-forest-900">
+                      🚌 Live Bus • 🚆 Rail • 🚕 Local Taxis
+                    </div>
+                  </div>
+                  <div class="text-[9px] text-center text-slate-400">Updated continuously</div>
+                `)}
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        id: 2,
+        shortTitle: '3. Geofenced Map',
+        timeLabel: '0:28 – 0:42',
+        badge: 'Scene 3 of 6 • Interactive Geofenced Map & Locate Me (0:28 – 0:42)',
+        start: 28,
+        end: 42,
+        voiceover: "Whether you're at home or travelling nearby, our interactive boundary map lets you tap 'Locate Me' with live mobile GPS or search any postcode—automatically welcoming you into mapped local hubs.",
+        render: () => `
+          <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-6 items-center animate-scene-in">
+            <div class="md:col-span-5 space-y-3.5">
+              <span class="inline-block px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold uppercase tracking-wider">/communities • True GeoJSON</span>
+              <h2 class="text-2xl sm:text-4xl font-extrabold text-white leading-tight">Live GPS "Locate Me" &amp; Boundary Geofencing</h2>
+              <p class="text-sm text-emerald-100/85 leading-relaxed">Custom GeoJSON town boundaries, High Street centre pins, postcode search, and automatic welcome alerts when travelling into a mapped community.</p>
+            </div>
+            <div class="md:col-span-7 animate-stagger-1">
+              ${uploadedScreenshots.communities ? `
+                <div class="flex items-center justify-center">
+                  ${renderPhoneMockup('communities', '')}
+                </div>
+              ` : `
+                <div class="bg-slate-900 border-2 border-emerald-500/40 rounded-2xl p-4 shadow-2xl">
+                  <div class="flex items-center justify-between gap-2 mb-3">
+                    <div class="flex-1 bg-white text-slate-700 rounded-xl px-3 py-2 text-xs font-medium flex items-center justify-between">
+                      <span>🔍 Search postcode or UK town...</span>
+                      <span class="text-[10px] font-bold text-forest-800 bg-emerald-100 px-2 py-0.5 rounded">GeoJSON Active</span>
+                    </div>
+                    <div class="bg-amber-500 text-forest-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5">
+                      <span>📍</span><span>Locate Me</span>
+                    </div>
+                  </div>
+                  <div class="relative h-56 rounded-xl bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-900 border border-emerald-700/50 overflow-hidden">
+                    <svg class="w-full h-full" viewBox="0 0 400 220" fill="none">
+                      <path d="M0 55 H400 M0 110 H400 M0 165 H400 M100 0 V220 M200 0 V220 M300 0 V220" stroke="rgba(16,185,129,0.12)" stroke-width="1"/>
+                      <path d="M-10 180 Q120 140 210 105 T410 40" stroke="rgba(56,189,248,0.35)" stroke-width="10" stroke-linecap="round"/>
+                      <polygon points="95,40 275,30 320,115 250,185 110,175 75,105" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="3" class="geojson-path"/>
+                      <circle cx="195" cy="110" r="16" fill="rgba(245,158,11,0.35)" class="gps-pulse"/>
+                      <circle cx="195" cy="110" r="7" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5"/>
+                    </svg>
+                    <div class="absolute bottom-3 left-3 right-3 bg-white/95 text-slate-900 rounded-xl p-2.5 shadow-xl border border-amber-300 flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-lg bg-forest-900 text-amber-400 flex items-center justify-center font-bold text-xs">📍</span>
+                        <div>
+                          <div class="text-xs font-extrabold text-forest-900">Welcome to Your Local Hub!</div>
+                          <div class="text-[10px] text-slate-600">Inside GeoJSON boundary • High Street Pin active</div>
+                        </div>
+                      </div>
+                      <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">GPS Verified</span>
+                    </div>
+                  </div>
+                </div>
+              `}
+            </div>
+          </div>
+        `
+      },
+      {
+        id: 3,
+        shortTitle: '4. High Street',
+        timeLabel: '0:42 – 0:58',
+        badge: 'Scene 4 of 6 • Virtual High Street, Events & Neighbours (0:42 – 0:58)',
+        start: 42,
+        end: 58,
+        voiceover: "Beyond daily essentials, explore your Virtual High Street to shop independent local stores with Community Courier delivery, discover What's On guides and events, find local jobs, or use neighbour-to-neighbour Buy, Swap & Sell and Lost & Found boards—without the spam.",
+        render: () => `
+          <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-6 items-center animate-scene-in">
+            <div class="md:col-span-7 space-y-3">
+              <span class="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold uppercase tracking-wider">Local Economy &amp; Neighbours</span>
+              <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Virtual High Street, Events &amp; Spam-Free Boards</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div class="bg-white text-slate-900 rounded-2xl p-3.5 shadow-lg border-t-4 border-amber-500 animate-stagger-1">
+                  <div class="text-xs font-extrabold text-forest-900">🛍️ Virtual High Street (/shopping)</div>
+                  <p class="text-xs text-slate-600 mt-1">Independent storefronts with <strong>Community Courier</strong> doorstep delivery &amp; business directory.</p>
+                </div>
+                <div class="bg-white text-slate-900 rounded-2xl p-3.5 shadow-lg border-t-4 border-emerald-600 animate-stagger-1">
+                  <div class="text-xs font-extrabold text-forest-900">📅 What's On &amp; Events (/events)</div>
+                  <p class="text-xs text-slate-600 mt-1">Local guides and calendar fixtures with one-tap <strong>Google Calendar / .ics</strong> export.</p>
+                </div>
+                <div class="bg-white text-slate-900 rounded-2xl p-3.5 shadow-lg border-t-4 border-sky-600 animate-stagger-2">
+                  <div class="text-xs font-extrabold text-forest-900">💼 Local Jobs &amp; Stays (/jobs)</div>
+                  <p class="text-xs text-slate-600 mt-1">Local Jobs Board, Accommodation &amp; Guestbook, and verified Local Charities.</p>
+                </div>
+                <div class="bg-white text-slate-900 rounded-2xl p-3.5 shadow-lg border-t-4 border-purple-600 animate-stagger-2">
+                  <div class="text-xs font-extrabold text-forest-900">🤝 Buy, Swap &amp; Sell (/marketplace)</div>
+                  <p class="text-xs text-slate-600 mt-1">Neighbour-to-neighbour Buy/Swap/Sell and Lost &amp; Found—<strong>without the spam</strong>.</p>
+                </div>
+              </div>
+            </div>
+            <div class="md:col-span-5 animate-stagger-2">
+              ${renderPhoneMockup('shopping', `
+                <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <span class="text-xs font-extrabold text-forest-900">Virtual High Street</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold">/shopping</span>
+                </div>
+                <div class="space-y-2 text-[10px]">
+                  <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                    <div class="font-bold text-forest-900">🥖 High Street Artisan Bakery</div>
+                    <div class="text-emerald-700 font-semibold">✓ Community Courier Delivery Today</div>
+                  </div>
+                  <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                    <div class="font-bold text-forest-900">📚 Valley Independent Books</div>
+                    <div class="text-emerald-700 font-semibold">✓ Click &amp; Collect or Local Drop</div>
+                  </div>
+                  <div class="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <div class="font-bold text-emerald-900">📅 Sat: Farmers Market (10 AM)</div>
+                    <div class="text-slate-600">Export to Google Calendar / .ics</div>
+                  </div>
+                </div>
+                <div class="text-[9px] text-center font-bold text-forest-800">Supporting local UK shops</div>
+              `)}
+            </div>
+          </div>
+        `
+      },
+      {
+        id: 4,
+        shortTitle: '5. Civic & CEAP',
+        timeLabel: '0:58 – 1:16',
+        badge: 'Scene 5 of 6 • Civic Voice & Civil Resilience (0:58 – 1:16)',
+        start: 58,
+        end: 76,
+        voiceover: "Have your say in local polls and petitions, receive verified council and National Park broadcasts, and rely on a built-in Civil Resilience Engine when floods or power outages strike—backed by local volunteers and over forty percent revenue share reinvested into your town.",
+        render: () => `
+          <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-5 items-center animate-scene-in">
+            <div class="md:col-span-7 space-y-3">
+              <span class="inline-block px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold uppercase tracking-wider">Civic Voice &amp; Emergency Resilience</span>
+              <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Local Democracy, CEAP Alerts &amp; 40%+ Revenue Share</h2>
+              <div class="bg-white text-slate-900 rounded-2xl p-4 shadow-xl border-2 border-amber-500 space-y-2.5 animate-stagger-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-extrabold text-slate-900">🛡️ Civil Resilience Engine (CEAP)</span>
+                  <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-extrabold">AMBER / RED READY</span>
+                </div>
+                <div class="grid grid-cols-5 gap-1 text-center text-[10px] font-bold">
+                  <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-lg p-1.5">🌊 Flood</div>
+                  <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-1.5">⚡ Grid</div>
+                  <div class="bg-orange-50 border border-orange-200 text-orange-900 rounded-lg p-1.5">🔥 Wildfire</div>
+                  <div class="bg-sky-50 border border-sky-200 text-sky-900 rounded-lg p-1.5">💧 Water</div>
+                  <div class="bg-slate-100 border border-slate-300 text-slate-900 rounded-lg p-1.5">🛡️ Civil</div>
+                </div>
+                <div class="text-[11px] text-slate-600">
+                  Failover refuges, official noticeboards &amp; <strong>Volunteer Asset Roster</strong> (4x4s, generators, licensed radio operators).
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 animate-stagger-2">
+                <div class="bg-forest-900/90 border border-emerald-700/70 rounded-xl p-3 text-xs text-emerald-100">
+                  <strong class="text-amber-300 block">🗳️ Polls, Petitions &amp; Networks</strong>
+                  "Have Your Say!" polls, petitions, and Council / National Park broadcasts.
+                </div>
+                <div class="bg-amber-500 text-forest-950 rounded-xl p-3 text-xs font-semibold">
+                  <strong class="font-extrabold block">💷 40%+ Leader Revenue Share</strong>
+                  Local ad subscriptions fund community projects &amp; sustainable hubs.
+                </div>
+              </div>
+            </div>
+            <div class="md:col-span-5 animate-stagger-2">
+              ${renderPhoneMockup('emergency', `
+                <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <span class="text-xs font-extrabold text-rose-700">CEAP Resilience Hub</span>
+                  <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-900 text-[9px] font-bold">/emergency</span>
+                </div>
+                <div class="p-2 rounded-lg bg-amber-50 border border-amber-300 text-[10px]">
+                  <div class="font-extrabold text-amber-900">⚠️ Flood &amp; Grid Protocol Ready</div>
+                  <div class="text-slate-700">Failover Refuge: Town Hall (Generator Active)</div>
+                </div>
+                <div class="space-y-1 text-[10px]">
+                  <div class="font-bold text-forest-900">Volunteer Asset Roster:</div>
+                  <div class="px-2 py-1 rounded bg-slate-100 font-semibold">🚙 6 Verified 4x4 Vehicles</div>
+                  <div class="px-2 py-1 rounded bg-slate-100 font-semibold">🔋 4 Portable Generators</div>
+                  <div class="px-2 py-1 rounded bg-slate-100 font-semibold">📻 3 Licensed Radio Operators</div>
+                </div>
+                <div class="text-[9px] text-center font-bold text-emerald-800">Verified Regional Network Sync</div>
+              `)}
+            </div>
+          </div>
+        `
+      },
+      {
+        id: 5,
+        shortTitle: '6. Join Today',
+        timeLabel: '1:16 – 1:30',
+        badge: 'Scene 6 of 6 • Call to Action (1:16 – 1:30)',
+        start: 76,
+        end: 90,
+        voiceover: "Everything your town needs, in one trusted place. Join your local hub—or step up as a Community Leader—today at my-community-hub.co.uk.",
+        render: () => `
+          <div class="w-full max-w-4xl text-center space-y-5 animate-scene-in">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-amber-500 text-forest-950 font-extrabold text-3xl shadow-2xl mx-auto animate-float">CH</div>
+            <div class="space-y-2.5">
+              <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">
+                Community Hub — <span class="text-amber-400">Your Town, Connected.</span>
+              </h2>
+              <p class="text-base sm:text-xl text-emerald-100/90 max-w-2xl mx-auto">
+                Everything your town needs, in one trusted place. Join your local hub—or step up as a Community Leader—today.
+              </p>
+            </div>
+            <div class="pt-1 flex justify-center animate-stagger-1">
+              <div class="px-8 py-4 rounded-2xl bg-white text-forest-950 font-extrabold text-xl sm:text-2xl shadow-2xl border-2 border-amber-400">
+                my-community-hub.co.uk
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-center gap-2.5 text-xs font-semibold text-emerald-200/90 pt-1 animate-stagger-2">
+              <span class="px-3 py-1 rounded-full bg-forest-900/90 border border-emerald-700/60">8:00 AM Daily Briefing</span>
+              <span class="px-3 py-1 rounded-full bg-forest-900/90 border border-emerald-700/60">Geofenced GPS Map</span>
+              <span class="px-3 py-1 rounded-full bg-forest-900/90 border border-emerald-700/60">Virtual High Street</span>
+              <span class="px-3 py-1 rounded-full bg-forest-900/90 border border-emerald-700/60">CEAP Resilience</span>
+            </div>
+          </div>
+        `
+      }
+    ];
+
+    // 30-Second Vertical Social Reel (9:16) Clips
+    const SCENES_9X16 = [
+      {
+        id: 0,
+        shortTitle: '1. The Hook',
+        timeLabel: '0:00 – 0:05',
+        badge: 'Clip 1 of 4 • Hook (0:00 – 0:05)',
+        start: 0,
+        end: 5,
+        voiceover: "One app for everything happening in your town—without the social media noise.",
+        render: () => `
+          <div class="w-full flex flex-col items-center text-center space-y-4 animate-scene-in">
+            <span class="px-3 py-1 rounded-full bg-amber-500 text-forest-950 text-[11px] font-extrabold uppercase tracking-wider shadow">Your Town. One Trusted Hub.</span>
+            <h2 class="text-2xl font-black text-white leading-tight px-2">Everything in Your Town—Without Social Noise</h2>
+            ${renderPhoneMockup('home', `
+              <div class="text-left space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-extrabold text-forest-900">Community Hub</span>
+                  <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold">UK</span>
+                </div>
+                <div class="p-2 rounded-xl bg-amber-50 border border-amber-200">
+                  <div class="text-[10px] font-extrabold text-amber-900">☀️ 8:00 AM Daily Briefing</div>
+                  <div class="text-[9px] text-slate-700">Weather • Roadworks • School Alerts</div>
+                </div>
+                <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-bold text-forest-900">📍 Live GPS Boundary Map</div>
+                <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-bold text-forest-900">🛍️ Virtual High Street</div>
+                <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-bold text-forest-900">🛡️ Civil Resilience Engine</div>
+              </div>
+            `, true)}
+          </div>
+        `
+      },
+      {
+        id: 1,
+        shortTitle: '2. Briefing & Map',
+        timeLabel: '0:05 – 0:14',
+        badge: 'Clip 2 of 4 • Briefing & Map (0:05 – 0:14)',
+        start: 5,
+        end: 14,
+        voiceover: "Get your 8:00 AM Daily Briefing with weather, 30-mile roadworks, and school alerts, plus a live GPS community map.",
+        render: () => `
+          <div class="w-full flex flex-col items-center text-center space-y-4 animate-scene-in">
+            <span class="px-3 py-1 rounded-full bg-emerald-500/25 border border-emerald-400/50 text-emerald-200 text-[11px] font-extrabold uppercase tracking-wider">8 AM Daily Briefing • Live GPS Map</span>
+            <h2 class="text-2xl font-black text-white leading-tight px-2">Morning Bulletin &amp; Geofenced GPS Map</h2>
+            ${renderPhoneMockup('communities', `
+              <div class="text-left space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-extrabold text-forest-900">/communities</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500 text-forest-950 text-[9px] font-extrabold">📍 Locate Me</span>
+                </div>
+                <div class="h-28 rounded-xl bg-emerald-950 border border-emerald-600/50 flex items-center justify-center relative overflow-hidden">
+                  <svg class="w-full h-full" viewBox="0 0 200 110" fill="none">
+                    <polygon points="35,20 155,15 175,65 130,95 45,85" fill="rgba(16,185,129,0.25)" stroke="#10b981" stroke-width="2.5" class="geojson-path"/>
+                    <circle cx="105" cy="55" r="10" fill="rgba(245,158,11,0.4)" class="gps-pulse"/>
+                    <circle cx="105" cy="55" r="5" fill="#f59e0b" stroke="#fff" stroke-width="1.5"/>
+                  </svg>
+                </div>
+                <div class="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[10px]">
+                  <div class="font-bold text-amber-900">8 AM Briefing Synced</div>
+                  <div class="text-slate-600">Weather, 30-mi roadworks &amp; schools</div>
+                </div>
+              </div>
+            `, true)}
+          </div>
+        `
+      },
+      {
+        id: 2,
+        shortTitle: '3. Shops & Alerts',
+        timeLabel: '0:14 – 0:23',
+        badge: 'Clip 3 of 4 • High Street & Resilience (0:14 – 0:23)',
+        start: 14,
+        end: 23,
+        voiceover: "Shop your Virtual High Street, vote in local polls, and stay protected with real-time emergency alerts.",
+        render: () => `
+          <div class="w-full flex flex-col items-center text-center space-y-4 animate-scene-in">
+            <span class="px-3 py-1 rounded-full bg-amber-500/25 border border-amber-400/50 text-amber-300 text-[11px] font-extrabold uppercase tracking-wider">Local Shops • Polls • Emergency Alerts</span>
+            <h2 class="text-2xl font-black text-white leading-tight px-2">Shop Local, Have Your Say &amp; Stay Protected</h2>
+            ${renderPhoneMockup('emergency', `
+              <div class="text-left space-y-2">
+                <div class="p-2 rounded-lg bg-amber-50 border border-amber-200">
+                  <div class="text-[10px] font-extrabold text-forest-900">🛍️ Virtual High Street</div>
+                  <div class="text-[9px] text-slate-600">Local stores + Community Courier</div>
+                </div>
+                <div class="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <div class="text-[10px] font-extrabold text-forest-900">🗳️ "Have Your Say!" Polls</div>
+                  <div class="text-[9px] text-slate-600">Verified local votes &amp; petitions</div>
+                </div>
+                <div class="p-2 rounded-lg bg-rose-50 border border-rose-200">
+                  <div class="text-[10px] font-extrabold text-rose-900">🛡️ CEAP Emergency Alerts</div>
+                  <div class="text-[9px] text-slate-700">Flood, Grid &amp; Volunteer Roster</div>
+                </div>
+              </div>
+            `, true)}
+          </div>
+        `
+      },
+      {
+        id: 3,
+        shortTitle: '4. Join Today',
+        timeLabel: '0:23 – 0:30',
+        badge: 'Clip 4 of 4 • Join Today (0:23 – 0:30)',
+        start: 23,
+        end: 30,
+        voiceover: "Join your community today at my-community-hub.co.uk.",
+        render: () => `
+          <div class="w-full flex flex-col items-center text-center space-y-5 px-3 animate-scene-in">
+            <div class="w-20 h-20 rounded-3xl bg-amber-500 text-forest-950 font-black text-3xl flex items-center justify-center shadow-2xl animate-float">CH</div>
+            <div class="space-y-2">
+              <h2 class="text-3xl font-black text-white leading-tight">Join Your Local Hub Today</h2>
+              <p class="text-sm text-emerald-100/90">Built for UK residents, independent shops &amp; Community Leaders.</p>
+            </div>
+            <div class="w-full py-3.5 px-4 rounded-2xl bg-white text-forest-950 font-black text-lg shadow-2xl border-2 border-amber-400">
+              my-community-hub.co.uk
+            </div>
+          </div>
+        `
+      }
+    ];
+
+    // Studio State
+    let currentMode = '16x9'; // '16x9' (90s) or '9x16' (30s)
+    let duration = 90;
+    let currentTime = 0;
+    let isPlaying = false;
+    let activeSceneIndex = -1;
+    let lastFrameTime = null;
+    let rafId = null;
+
+    // Audio State (Kore File Sync + Browser Fallback)
+    const koreAudio = document.getElementById('kore-audio-player');
+    const koreAudioUrls = { '16x9': null, '9x16': null };
+    const koreFileNames = { '16x9': '', '9x16': '' };
+    let fallbackVoiceEnabled = false;
+    let captionsEnabled = true;
+    let lastSpokenSceneIndex = -1;
+
+    // DOM Elements
+    const videoFrame = document.getElementById('video-frame');
+    const frameTopBar = document.getElementById('frame-top-bar');
+    const watermarkDomain = document.getElementById('watermark-domain');
+    const sceneBadge = document.getElementById('scene-badge');
+    const sceneStage = document.getElementById('scene-stage');
+    const subtitleContainer = document.getElementById('subtitle-container');
+    const subtitleBox = document.getElementById('subtitle-box');
+    const subtitleText = document.getElementById('subtitle-text');
+    const timelineSlider = document.getElementById('timeline-slider');
+    const timeCurrent = document.getElementById('time-current');
+    const timeTotal = document.getElementById('time-total');
+    const btnPlayPause = document.getElementById('btn-play-pause');
+    const playIcon = document.getElementById('play-icon');
+    const playLabel = document.getElementById('play-label');
+    const btnRestart = document.getElementById('btn-restart');
+    const sceneButtonsGrid = document.getElementById('scene-buttons-grid');
+
+    const btnMode16x9 = document.getElementById('btn-mode-16x9');
+    const btnMode9x16 = document.getElementById('btn-mode-9x16');
+    const btnLoadKore = document.getElementById('btn-load-kore');
+    const koreBtnLabel = document.getElementById('kore-btn-label');
+    const koreFileInput = document.getElementById('kore-file-input');
+    const audioStatusBadge = document.getElementById('audio-status-badge');
+    const audioStatusText = document.getElementById('audio-status-text');
+
+    const btnToggleScript = document.getElementById('btn-toggle-script');
+    const drawerScript = document.getElementById('drawer-script');
+    const scriptDrawerTitle = document.getElementById('script-drawer-title');
+    const koreScriptBox = document.getElementById('kore-script-box');
+    const btnCopyScript = document.getElementById('btn-copy-script');
+    const copyToast = document.getElementById('copy-toast');
+    const btnCloseScript = document.getElementById('btn-close-script');
+
+    const btnToggleShots = document.getElementById('btn-toggle-shots');
+    const shotsBtnLabel = document.getElementById('shots-btn-label');
+    const drawerShots = document.getElementById('drawer-shots');
+    const shotsGrid = document.getElementById('shots-grid');
+    const btnCloseShots = document.getElementById('btn-close-shots');
+
+    const btnVoice = document.getElementById('btn-voice');
+    const voiceIcon = document.getElementById('voice-icon');
+    const voiceLabel = document.getElementById('voice-label');
+    const btnCaptions = document.getElementById('btn-captions');
+    const captionsLabel = document.getElementById('captions-label');
+    const btnRecordMode = document.getElementById('btn-record-mode');
+    const exitRecordBtn = document.getElementById('exit-record-btn');
+
+    function getActiveScenes() {
+      return currentMode === '16x9' ? SCENES_16X9 : SCENES_9X16;
+    }
+
+    function formatTime(sec) {
+      const clamped = Math.max(0, Math.min(duration, Math.floor(sec)));
+      const mins = Math.floor(clamped / 60);
+      const secs = clamped % 60;
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    // Build Screenshot Uploader Cards
+    function renderScreenshotSlots() {
+      const count = Object.values(uploadedScreenshots).filter(Boolean).length;
+      shotsBtnLabel.textContent = `App Screens (${count}/6)`;
+
+      shotsGrid.innerHTML = SCREENSHOT_SLOTS.map(slot => {
+        const img = uploadedScreenshots[slot.key];
+        return `
+          <label class="relative rounded-xl border ${img ? 'border-amber-400 bg-forest-900/70' : 'border-dashed border-emerald-700 bg-slate-950/80 hover:border-amber-400'} p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition min-h-[104px] overflow-hidden">
+            <input type="file" accept="image/*" data-slot="${slot.key}" class="shot-file-input hidden" />
+            ${img ? `
+              <img src="${img}" alt="${slot.label}" class="w-12 h-16 object-cover object-top rounded-lg border border-white/20 mb-1.5 shadow" />
+              <span class="text-[11px] font-bold text-amber-300 truncate w-full">${slot.label}</span>
+              <span class="text-[10px] text-emerald-300">✓ Loaded (Click to swap)</span>
+            ` : `
+              <span class="text-lg mb-1">📱</span>
+              <span class="text-[11px] font-bold text-white">${slot.label}</span>
+              <span class="text-[10px] text-emerald-400 font-mono">${slot.route}</span>
+              <span class="text-[9px] text-slate-400 mt-0.5">+ Upload PNG/JPG</span>
+            `}
+          </label>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.shot-file-input').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          const slotKey = e.target.getAttribute('data-slot');
+          if (file && slotKey) {
+            if (uploadedScreenshots[slotKey]) URL.revokeObjectURL(uploadedScreenshots[slotKey]);
+            uploadedScreenshots[slotKey] = URL.createObjectURL(file);
+            renderScreenshotSlots();
+            syncToTime(currentTime, true);
+          }
+        });
+      });
+    }
+
+    // Build Bottom Scene Jump Buttons
+    function renderSceneButtons() {
+      const scenes = getActiveScenes();
+      sceneButtonsGrid.className = currentMode === '16x9'
+        ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2'
+        : 'grid grid-cols-2 sm:grid-cols-4 gap-2';
+
+      sceneButtonsGrid.innerHTML = scenes.map((sc, idx) => `
+        <button type="button" data-scene="${idx}" class="scene-jump-btn px-2.5 py-2 rounded-xl text-left border transition cursor-pointer bg-forest-950/70 border-emerald-800/70 text-emerald-100 hover:bg-forest-800/80">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">${sc.timeLabel}</div>
+          <div class="text-xs font-semibold truncate">${sc.shortTitle}</div>
+        </button>
+      `).join('');
+
+      document.querySelectorAll('.scene-jump-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.getAttribute('data-scene'), 10);
+          const list = getActiveScenes();
+          if (!isNaN(idx) && list[idx]) {
+            currentTime = list[idx].start;
+            lastSpokenSceneIndex = -1;
+            stopFallbackSpeech();
+            syncAudioToTimeline(currentTime);
+            syncToTime(currentTime, true);
+            if (isPlaying && !koreAudioUrls[currentMode] && fallbackVoiceEnabled) {
+              speakFallback(list[idx].voiceover);
+            }
+          }
+        });
+      });
+    }
+
+    // Sync Kore Audio File to Timeline Position
+    function syncAudioToTimeline(timeSec) {
+      const url = koreAudioUrls[currentMode];
+      if (!url || !koreAudio.duration || isNaN(koreAudio.duration)) return;
+      const ratio = koreAudio.duration / duration;
+      const targetAudioTime = Math.min(koreAudio.duration - 0.05, Math.max(0, timeSec * ratio));
+      if (Math.abs(koreAudio.currentTime - targetAudioTime) > 0.25) {
+        koreAudio.currentTime = targetAudioTime;
+      }
+      koreAudio.playbackRate = ratio;
+    }
+
+    function updateAudioStatusUI() {
+      const fileName = koreFileNames[currentMode];
+      if (fileName) {
+        koreBtnLabel.textContent = 'Kore Loaded ✓';
+        audioStatusBadge.textContent = 'Kore Audio Synced';
+        audioStatusBadge.className = 'px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 font-bold uppercase tracking-wider text-[10px]';
+        audioStatusText.textContent = `Synced "${fileName}" to the ${duration}s timeline.`;
+      } else {
+        koreBtnLabel.textContent = 'Load Kore Audio';
+        audioStatusBadge.textContent = 'Ready';
+        audioStatusBadge.className = 'px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold uppercase tracking-wider text-[10px]';
+        audioStatusText.textContent = `Click "Kore Script" to copy the ${duration}s script for Google AI Studio, then click "Load Kore Audio".`;
+      }
+    }
+
+    // Fallback Browser UK Speech
+    function stopFallbackSpeech() {
+      if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+      }
+    }
+
+    function speakFallback(text) {
+      if (!fallbackVoiceEnabled || koreAudioUrls[currentMode] || !('speechSynthesis' in window)) return;
+      stopFallbackSpeech();
+      const normalized = text
+        .replace(/my-community-hub\.co\.uk/gi, 'my community hub dot co dot U K')
+        .replace(/8:00\s*AM/gi, '8 A M')
+        .replace(/40%\+/g, 'over forty percent');
+      const utter = new SpeechSynthesisUtterance(normalized);
+      const voices = window.speechSynthesis.getVoices();
+      const ukVoice = voices.find(v => /en-gb|en_gb/i.test(v.lang) && /natural|online|google/i.test(v.name))
+        || voices.find(v => /en-gb|en_gb/i.test(v.lang));
+      if (ukVoice) utter.voice = ukVoice;
+      utter.lang = 'en-GB';
+      utter.rate = 0.96;
+      window.speechSynthesis.speak(utter);
+    }
+
+    // Render Active Scene at Current Timestamp
+    function syncToTime(timeSec, forceRender = false) {
+      const scenes = getActiveScenes();
+      const clamped = Math.max(0, Math.min(duration, timeSec));
+      timelineSlider.value = clamped.toFixed(1);
+      timeCurrent.textContent = formatTime(clamped);
+
+      let foundIndex = scenes.findIndex(s => clamped >= s.start && clamped < s.end);
+      if (foundIndex === -1) foundIndex = scenes.length - 1;
+
+      if (foundIndex !== activeSceneIndex || forceRender) {
+        activeSceneIndex = foundIndex;
+        const scene = scenes[foundIndex];
+        sceneBadge.textContent = scene.badge;
+        subtitleText.textContent = `"${scene.voiceover}"`;
+        sceneStage.innerHTML = scene.render();
+
+        document.querySelectorAll('.scene-jump-btn').forEach((btn, idx) => {
+          if (idx === foundIndex) {
+            btn.classList.remove('bg-forest-950/70', 'border-emerald-800/70', 'text-emerald-100');
+            btn.classList.add('bg-forest-800', 'border-amber-400', 'text-white');
+          } else {
+            btn.classList.add('bg-forest-950/70', 'border-emerald-800/70', 'text-emerald-100');
+            btn.classList.remove('bg-forest-800', 'border-amber-400', 'text-white');
+          }
+        });
+
+        if (isPlaying && !koreAudioUrls[currentMode] && lastSpokenSceneIndex !== foundIndex) {
+          lastSpokenSceneIndex = foundIndex;
+          speakFallback(scene.voiceover);
+        }
+      }
+    }
+
+    // Animation Loop
+    function tick(timestamp) {
+      if (!isPlaying) return;
+      if (lastFrameTime === null) lastFrameTime = timestamp;
+
+      const deltaSec = (timestamp - lastFrameTime) / 1000;
+      lastFrameTime = timestamp;
+      currentTime += deltaSec;
+
+      if (currentTime >= duration) {
+        currentTime = duration;
+        syncToTime(duration);
+        pausePromo();
+        playLabel.textContent = `Replay ${duration}s`;
+        return;
+      }
+
+      syncToTime(currentTime);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function startPromo() {
+      if (currentTime >= duration) {
+        currentTime = 0;
+        lastSpokenSceneIndex = -1;
+      }
+      isPlaying = true;
+      lastFrameTime = null;
+      playIcon.textContent = '⏸';
+      playLabel.textContent = 'Pause';
+
+      if (koreAudioUrls[currentMode]) {
+        syncAudioToTimeline(currentTime);
+        koreAudio.play().catch(() => {});
+      } else if (fallbackVoiceEnabled && activeSceneIndex >= 0) {
+        lastSpokenSceneIndex = activeSceneIndex;
+        speakFallback(getActiveScenes()[activeSceneIndex].voiceover);
+      }
+
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function pausePromo() {
+      isPlaying = false;
+      lastFrameTime = null;
+      playIcon.textContent = '▶';
+      playLabel.textContent = currentTime >= duration ? `Replay ${duration}s` : `Play ${duration}s Promo`;
+      if (rafId) cancelAnimationFrame(rafId);
+      koreAudio.pause();
+      stopFallbackSpeech();
+    }
+
+    // Switch Between 16:9 (90s) and 9:16 (30s)
+    function switchMode(mode) {
+      if (currentMode === mode) return;
+      pausePromo();
+      currentMode = mode;
+      duration = mode === '16x9' ? 90 : 30;
+      currentTime = 0;
+      activeSceneIndex = -1;
+      lastSpokenSceneIndex = -1;
+
+      timelineSlider.max = duration;
+      timelineSlider.value = 0;
+      timeTotal.textContent = formatTime(duration);
+      playLabel.textContent = `Play ${duration}s Promo`;
+
+      // Update Mode Buttons
+      if (mode === '16x9') {
+        btnMode16x9.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-forest-950 shadow transition cursor-pointer';
+        btnMode9x16.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-200 hover:text-white transition cursor-pointer';
+        videoFrame.className = 'mode-16x9 relative w-full max-w-6xl aspect-video rounded-2xl overflow-hidden shadow-2xl border border-emerald-700/60 bg-gradient-to-br from-forest-950 via-forest-900 to-slate-950 flex flex-col justify-between transition-all duration-300';
+        watermarkDomain.classList.remove('hidden');
+        subtitleBox.className = 'max-w-4xl bg-slate-950/85 backdrop-blur-md border border-white/15 px-4 py-2.5 rounded-2xl shadow-xl text-center';
+        subtitleText.className = 'text-sm sm:text-base font-medium text-white leading-snug';
+        scriptDrawerTitle.textContent = '90-Second Kore Voice-Over Script (Google AI Studio)';
+      } else {
+        btnMode9x16.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-forest-950 shadow transition cursor-pointer';
+        btnMode16x9.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-200 hover:text-white transition cursor-pointer';
+        videoFrame.className = 'mode-9x16 relative h-[76vh] max-h-[780px] aspect-[9/16] rounded-[32px] overflow-hidden shadow-2xl border-2 border-emerald-600/70 bg-gradient-to-b from-forest-950 via-forest-900 to-slate-950 flex flex-col justify-between transition-all duration-300';
+        watermarkDomain.classList.add('hidden');
+        subtitleBox.className = 'w-full bg-slate-950/90 backdrop-blur-md border border-white/15 px-3.5 py-2 rounded-2xl shadow-xl text-center mb-2';
+        subtitleText.className = 'text-xs font-semibold text-white leading-snug';
+        scriptDrawerTitle.textContent = '30-Second Kore Voice-Over Script (Google AI Studio)';
+      }
+
+      koreScriptBox.value = KORE_SCRIPTS[mode];
+      koreAudio.src = koreAudioUrls[mode] || '';
+      updateAudioStatusUI();
+      renderSceneButtons();
+      syncToTime(0, true);
+    }
+
+    // Event Listeners
+    btnMode16x9.addEventListener('click', () => switchMode('16x9'));
+    btnMode9x16.addEventListener('click', () => switchMode('9x16'));
+
+    btnPlayPause.addEventListener('click', () => isPlaying ? pausePromo() : startPromo());
+
+    btnRestart.addEventListener('click', () => {
+      currentTime = 0;
+      lastSpokenSceneIndex = -1;
+      stopFallbackSpeech();
+      syncAudioToTimeline(0);
+      syncToTime(0, true);
+      startPromo();
+    });
+
+    timelineSlider.addEventListener('input', (e) => {
+      currentTime = parseFloat(e.target.value);
+      lastSpokenSceneIndex = -1;
+      stopFallbackSpeech();
+      syncAudioToTimeline(currentTime);
+      syncToTime(currentTime);
+    });
+
+    // Kore Audio Upload
+    btnLoadKore.addEventListener('click', () => koreFileInput.click());
+    koreFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (koreAudioUrls[currentMode]) URL.revokeObjectURL(koreAudioUrls[currentMode]);
+      koreAudioUrls[currentMode] = URL.createObjectURL(file);
+      koreFileNames[currentMode] = file.name;
+      koreAudio.src = koreAudioUrls[currentMode];
+      koreAudio.load();
+      updateAudioStatusUI();
+      koreFileInput.value = '';
+    });
+
+    // Drawers
+    btnToggleScript.addEventListener('click', () => {
+      drawerShots.classList.add('hidden');
+      drawerScript.classList.toggle('hidden');
+    });
+    btnCloseScript.addEventListener('click', () => drawerScript.classList.add('hidden'));
+
+    btnCopyScript.addEventListener('click', () => {
+      koreScriptBox.select();
+      document.execCommand('copy');
+      copyToast.classList.remove('hidden');
+      setTimeout(() => copyToast.classList.add('hidden'), 2500);
+    });
+
+    btnToggleShots.addEventListener('click', () => {
+      drawerScript.classList.add('hidden');
+      drawerShots.classList.toggle('hidden');
+    });
+    btnCloseShots.addEventListener('click', () => drawerShots.classList.add('hidden'));
+
+    // Fallback VO & Subtitles
+    btnVoice.addEventListener('click', () => {
+      fallbackVoiceEnabled = !fallbackVoiceEnabled;
+      voiceIcon.textContent = fallbackVoiceEnabled ? '🔊' : '🔇';
+      voiceLabel.textContent = fallbackVoiceEnabled ? 'Fallback VO: ON' : 'Fallback VO: OFF';
+      if (!fallbackVoiceEnabled) stopFallbackSpeech();
+      else if (isPlaying && !koreAudioUrls[currentMode] && activeSceneIndex >= 0) {
+        speakFallback(getActiveScenes()[activeSceneIndex].voiceover);
+      }
+    });
+
+    btnCaptions.addEventListener('click', () => {
+      captionsEnabled = !captionsEnabled;
+      captionsLabel.textContent = captionsEnabled ? 'Subtitles: ON' : 'Subtitles: OFF';
+      subtitleContainer.style.display = captionsEnabled ? 'flex' : 'none';
+    });
+
+    // Clean Screen-Record Mode
+    btnRecordMode.addEventListener('click', () => document.body.classList.add('record-mode'));
+    exitRecordBtn.addEventListener('click', () => document.body.classList.remove('record-mode'));
+
+    // Init
+    window.addEventListener('DOMContentLoaded', () => {
+      koreScriptBox.value = KORE_SCRIPTS['16x9'];
+      renderScreenshotSlots();
+      renderSceneButtons();
+      updateAudioStatusUI();
+      syncToTime(0, true);
+    });
+  </script>
+</body>
+</html>

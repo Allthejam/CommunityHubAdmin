@@ -47,7 +47,8 @@ import {
   Stethoscope,
   ShieldAlert as ShieldAlertIcon,
   Contact2,
-  Star
+  Star,
+  Video
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 
@@ -122,6 +123,7 @@ const mainAdminMenuItems = [
       { href: '/admin/marketing/manuals', label: 'Instruction Manuals', icon: BookOpen },
       { href: '/admin/marketing/gallery', label: 'Image Gallery', icon: GalleryHorizontal },
       { href: '/admin/audio-hub', label: 'Audio Hub', icon: Mic },
+      { href: '/admin/marketing/video-studio', label: 'Video Studio', icon: Video },
       { href: '/admin/platform-overview', label: 'Platform Overview', icon: Presentation },
       { href: '/admin/careers', label: 'Careers Board', icon: Briefcase },
     ]
