@@ -23,30 +23,24 @@ import {
   Loader2, 
   ShieldAlert, 
   Sun, 
-  CloudSun, 
   Truck, 
   MapPin, 
   Bell, 
-  Share2, 
   ShoppingBag, 
   Calendar, 
-  HelpCircle, 
-  Compass, 
   Clock, 
   ArrowRight,
   Download,
-  Flame,
-  CheckCircle2,
   AlertTriangle,
-  Users
+  Users,
+  CheckCircle2,
+  Subtitles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -217,7 +211,6 @@ export default function MarketingVideoStudioPage() {
   const [audioUrl, setAudioUrl] = React.useState<string | null>(null);
   const [availableAudioTours, setAvailableAudioTours] = React.useState<{ id: string; title: string; audioUrl?: string }[]>([]);
   const [selectedTourId, setSelectedTourId] = React.useState<string>('none');
-  const [browserTtsFallback, setBrowserTtsFallback] = React.useState(false);
 
   // Custom screenshots mapping (scene id -> data url)
   const [customScreenshots, setCustomScreenshots] = React.useState<Record<number, string>>({});
@@ -225,7 +218,6 @@ export default function MarketingVideoStudioPage() {
   // Audio element reference
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const animationFrameRef = React.useRef<number | null>(null);
-  const startTimeRef = React.useRef<number>(0);
 
   // Load existing audio tours from Audio Hub (Firestore)
   React.useEffect(() => {
@@ -274,21 +266,19 @@ export default function MarketingVideoStudioPage() {
     };
   }, [audioUrl]);
 
-  // Synthetic animation timer fallback when no audio track is attached
+  // Playback animation timer
   React.useEffect(() => {
     if (!isPlaying) {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       return;
     }
 
-    // If real audio is playing, audio element drives time
     if (audioUrl && audioRef.current) {
       audioRef.current.playbackRate = playbackSpeed;
       audioRef.current.play().catch(e => console.warn('Audio play failed:', e));
       return;
     }
 
-    // Otherwise use synthetic requestAnimationFrame
     let lastStamp = performance.now();
     const tick = (now: number) => {
       const deltaSec = ((now - lastStamp) / 1000) * playbackSpeed;
@@ -351,7 +341,7 @@ export default function MarketingVideoStudioPage() {
     try {
       toast({
         title: "Generating Audio Hub Voice-Over...",
-        description: `Synthesizing ${aspectMode === '16x9' ? '90s' : '30s'} narrative with voice "${selectedVoice}".`,
+        description: `Synthesizing ${aspectMode === '16x9' ? '90s' : '30s'} narration with "${selectedVoice}".`,
       });
 
       const res = await generateAndSaveAudioAction({
@@ -440,32 +430,32 @@ export default function MarketingVideoStudioPage() {
         }}
       />
 
-      {/* Header Banner (Hidden during clean record mode) */}
+      {/* Hero Header Banner (Styled to match Community Hub Admin theme) */}
       {!isCleanRecordMode && (
-        <div className="p-6 rounded-2xl bg-gradient-to-r from-forest-950 via-forest-900 to-emerald-950 border border-emerald-700/40 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
-          <div>
-            <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">
-              <Video className="h-4 w-4" />
+        <div className="p-6 sm:p-7 rounded-2xl bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-indigo-600/15 border-2 border-blue-500/25 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm relative overflow-hidden">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-widest">
+              <Video className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               Marketing & Visual Communications
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-headline flex items-center gap-2.5 text-white">
-              <span className="p-2 rounded-xl bg-amber-500 text-forest-950 font-black text-lg">CH</span>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-headline flex items-center gap-2.5 text-foreground">
+              <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-base shadow">CH</span>
               Marketing Video Studio
             </h1>
-            <p className="text-emerald-200/80 text-sm mt-1 max-w-2xl">
-              Turn verified behind-the-login features into animated explainer videos and social reels, synchronized directly with Community Hub Audio Hub voices.
+            <p className="text-muted-foreground text-sm max-w-2xl leading-relaxed">
+              Create animated explainer videos and social reels for Community Hub, synchronized directly with your verified <strong>Audio Hub</strong> voice-over engine.
             </p>
           </div>
 
-          {/* Quick Format Switcher & Record Mode Button */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="bg-forest-950/80 p-1 rounded-xl border border-emerald-600/50 flex items-center">
+          {/* Format Switcher & Clean Screen-Record Button */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <div className="bg-background/90 p-1 rounded-xl border border-border shadow-sm flex items-center">
               <Button
                 variant={aspectMode === '16x9' ? 'default' : 'ghost'}
                 size="sm"
                 className={cn(
                   "text-xs font-bold gap-1.5 h-8",
-                  aspectMode === '16x9' ? "bg-amber-500 text-forest-950 hover:bg-amber-400" : "text-emerald-200 hover:text-white"
+                  aspectMode === '16x9' ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => { setAspectMode('16x9'); setCurrentTime(0); }}
               >
@@ -477,7 +467,7 @@ export default function MarketingVideoStudioPage() {
                 size="sm"
                 className={cn(
                   "text-xs font-bold gap-1.5 h-8",
-                  aspectMode === '9x16' ? "bg-amber-500 text-forest-950 hover:bg-amber-400" : "text-emerald-200 hover:text-white"
+                  aspectMode === '9x16' ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => { setAspectMode('9x16'); setCurrentTime(0); }}
               >
@@ -487,11 +477,11 @@ export default function MarketingVideoStudioPage() {
             </div>
 
             <Button
-              className="bg-amber-500 hover:bg-amber-400 text-forest-950 font-black text-xs gap-1.5 h-9 shadow-md"
+              className="bg-amber-600 hover:bg-amber-700 text-white font-black text-xs gap-1.5 h-9 shadow-sm"
               onClick={() => setIsCleanRecordMode(true)}
             >
-              <Maximize2 className="h-4 w-4" />
-              Clean Screen-Record Mode
+              <Maximize2 className="h-3.5 w-3.5" />
+              Clean Screen-Record
             </Button>
           </div>
         </div>
@@ -501,7 +491,7 @@ export default function MarketingVideoStudioPage() {
       {isCleanRecordMode && (
         <button
           onClick={() => setIsCleanRecordMode(false)}
-          className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-bold border border-white/20 shadow-2xl backdrop-blur-md flex items-center gap-2 cursor-pointer transition hover:scale-105"
+          className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl bg-slate-900/95 hover:bg-black text-white text-xs font-bold border border-white/20 shadow-2xl backdrop-blur-md flex items-center gap-2 cursor-pointer transition hover:scale-105"
         >
           <Minimize2 className="h-4 w-4 text-amber-400" />
           <span>Exit Screen-Record Mode (Esc)</span>
@@ -514,30 +504,30 @@ export default function MarketingVideoStudioPage() {
         {/* Left / Center: Interactive Video Stage Canvas */}
         <div className={cn(isCleanRecordMode ? "col-span-1" : "lg:col-span-8 flex flex-col gap-4")}>
           
-          <Card className={cn("overflow-hidden border-2 border-emerald-800/60 bg-forest-950 shadow-2xl relative", isCleanRecordMode && "border-none rounded-none")}>
+          <Card className={cn("overflow-hidden border border-border bg-card shadow-md relative", isCleanRecordMode && "border-none rounded-none shadow-none")}>
             
-            {/* The Video Stage Frame */}
-            <div className="flex items-center justify-center p-2 sm:p-4 bg-gradient-to-br from-forest-950 via-slate-950 to-emerald-950">
+            {/* The Cinema Video Stage Area */}
+            <div className="flex items-center justify-center p-3 sm:p-6 bg-slate-900/90 dark:bg-black/95">
               
               <div 
                 className={cn(
-                  "relative w-full rounded-2xl overflow-hidden shadow-2xl border border-emerald-600/40 bg-gradient-to-br from-forest-950 via-forest-900 to-slate-950 flex flex-col justify-between transition-all duration-300",
+                  "relative w-full rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700/80 bg-slate-950 text-white flex flex-col justify-between transition-all duration-300",
                   aspectMode === '16x9' ? "aspect-video max-w-4xl" : "aspect-[9/16] max-w-sm max-h-[82vh]"
                 )}
               >
-                {/* Ambient Glows */}
-                <div className="pointer-events-none absolute -top-20 -left-20 w-72 h-72 rounded-full bg-emerald-500/15 blur-3xl"></div>
-                <div className="pointer-events-none absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-amber-500/15 blur-3xl"></div>
+                {/* Subtle Ambient Glows */}
+                <div className="pointer-events-none absolute -top-20 -left-20 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl"></div>
+                <div className="pointer-events-none absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-purple-500/10 blur-3xl"></div>
 
                 {/* Top Watermark & Scene Badge */}
                 <div className="relative z-20 flex items-center justify-between px-4 pt-3.5">
-                  <div className="flex items-center gap-2 bg-forest-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/15">
+                  <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
                     <span className="text-xs font-black tracking-wide text-white">Community Hub</span>
-                    <span className="text-[10px] text-emerald-300 hidden sm:inline">• my-community-hub.co.uk</span>
+                    <span className="text-[10px] text-slate-300 hidden sm:inline">• my-community-hub.co.uk</span>
                   </div>
 
-                  <div className="bg-forest-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-emerald-500/40 text-[10px] font-bold text-emerald-200">
+                  <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700 text-[10px] font-bold text-amber-400 shadow-sm">
                     Scene {currentScene.id} of {activeScenes.length} • {currentScene.title}
                   </div>
                 </div>
@@ -548,7 +538,7 @@ export default function MarketingVideoStudioPage() {
                   {/* Custom Uploaded Screenshot Display */}
                   {customScreenshots[currentScene.id] ? (
                     <div className="w-full h-full flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
-                      <div className="relative max-h-full rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-slate-900">
+                      <div className="relative max-h-full rounded-xl overflow-hidden shadow-2xl border border-slate-700 bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                           src={customScreenshots[currentScene.id]} 
@@ -558,26 +548,26 @@ export default function MarketingVideoStudioPage() {
                       </div>
                     </div>
                   ) : (
-                    /* Default Authentic Scene UI Visuals */
+                    /* High-Contrast Authentic Vector Cards */
                     <div className="w-full h-full flex flex-col items-center justify-center text-center animate-in fade-in duration-500">
                       
                       {/* Scene 1: The Hook */}
                       {currentScene.id === 1 && (
                         <div className="space-y-4 max-w-md">
-                          <div className="inline-flex p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                          <div className="inline-flex p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm">
                             <Bell className="h-8 w-8 animate-bounce" />
                           </div>
-                          <h2 className="text-xl sm:text-2xl font-black text-white leading-tight">
+                          <h2 className="text-xl sm:text-2xl font-black text-white leading-tight font-headline">
                             Tired of noisy feeds & missed local updates?
                           </h2>
-                          <div className="grid grid-cols-2 gap-2 text-left text-xs">
-                            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300">
-                              <p className="font-bold text-[10px] uppercase">Cluttered Socials</p>
-                              <p className="text-[11px] opacity-80">Lost notices & spam</p>
+                          <div className="grid grid-cols-2 gap-2.5 text-left text-xs">
+                            <div className="p-3 rounded-xl bg-slate-900 border border-rose-500/40 text-slate-100 shadow-sm">
+                              <p className="font-black text-[10px] uppercase text-rose-400">Social Media Noise</p>
+                              <p className="text-xs text-slate-300 mt-0.5">Scattered groups & spam</p>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                              <p className="font-bold text-[10px] uppercase">Community Hub</p>
-                              <p className="text-[11px] opacity-80">One verified town square</p>
+                            <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/40 text-slate-100 shadow-sm">
+                              <p className="font-black text-[10px] uppercase text-emerald-400">Community Hub</p>
+                              <p className="text-xs text-slate-300 mt-0.5">One verified digital hub</p>
                             </div>
                           </div>
                         </div>
@@ -585,32 +575,32 @@ export default function MarketingVideoStudioPage() {
 
                       {/* Scene 2: 8:00 AM Daily Morning Briefing */}
                       {currentScene.id === 2 && (
-                        <div className="w-full max-w-md space-y-2.5 text-left">
-                          <div className="p-3 rounded-xl bg-forest-900/90 border border-emerald-500/40 shadow-xl space-y-2">
-                            <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                                <Clock className="h-3 w-3" /> 8:00 AM Daily Morning Briefing
+                        <div className="w-full max-w-md space-y-3 text-left">
+                          <div className="p-4 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                              <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                                <Clock className="h-3.5 w-3.5 text-amber-400" /> 8:00 AM Daily Morning Briefing
                               </span>
-                              <Badge variant="outline" className="text-[9px] text-emerald-300 border-emerald-400/30">Live Bulletin</Badge>
+                              <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">Live Bulletin</Badge>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="p-2 rounded-lg bg-white/5 flex items-center gap-2">
-                                <Sun className="h-5 w-5 text-amber-400" />
+                              <div className="p-2.5 rounded-lg bg-slate-800/90 border border-slate-700 flex items-center gap-2.5">
+                                <Sun className="h-5 w-5 text-amber-400 shrink-0" />
                                 <div>
-                                  <p className="font-bold text-[11px] text-white">16°C Sunny</p>
-                                  <p className="text-[9px] text-emerald-200">Met Office Verified</p>
+                                  <p className="font-bold text-xs text-white">16°C Sunny</p>
+                                  <p className="text-[10px] text-slate-300">Met Office Verified</p>
                                 </div>
                               </div>
-                              <div className="p-2 rounded-lg bg-white/5 flex items-center gap-2">
-                                <Truck className="h-5 w-5 text-blue-400" />
+                              <div className="p-2.5 rounded-lg bg-slate-800/90 border border-slate-700 flex items-center gap-2.5">
+                                <Truck className="h-5 w-5 text-blue-400 shrink-0" />
                                 <div>
-                                  <p className="font-bold text-[11px] text-white">A95 Roadworks</p>
-                                  <p className="text-[9px] text-emerald-200">30-Mile Radar Active</p>
+                                  <p className="font-bold text-xs text-white">A95 Roadworks</p>
+                                  <p className="text-[10px] text-slate-300">30-Mile Radar Active</p>
                                 </div>
                               </div>
                             </div>
-                            <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200">
-                              <strong>Leader Public Notice:</strong> Community Council meeting tonight at 7:00 PM.
+                            <div className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-xs text-amber-200 leading-snug">
+                              <strong>Leader Notice:</strong> Community Council public meeting tonight at 7:00 PM.
                             </div>
                           </div>
                         </div>
@@ -619,33 +609,32 @@ export default function MarketingVideoStudioPage() {
                       {/* Scene 3: Interactive Boundary Map & GPS Locate Me */}
                       {currentScene.id === 3 && (
                         <div className="w-full max-w-md space-y-3">
-                          <div className="relative h-44 w-full rounded-xl bg-slate-900/80 border border-emerald-500/30 overflow-hidden flex items-center justify-center">
+                          <div className="relative h-44 w-full rounded-xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center shadow-lg">
                             {/* Animated SVG GeoJSON Boundary Line */}
                             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 120">
                               <polygon 
                                 points="30,20 170,25 185,95 120,110 25,85" 
-                                fill="rgba(16, 185, 129, 0.12)" 
+                                fill="rgba(16, 185, 129, 0.15)" 
                                 stroke="#10b981" 
                                 strokeWidth="2.5" 
                                 strokeDasharray="400" 
                                 strokeDashoffset="0"
-                                className="transition-all duration-1000"
                               />
                             </svg>
                             {/* Center GPS Pin */}
                             <div className="relative z-10 flex flex-col items-center">
                               <div className="relative">
                                 <div className="absolute -inset-2 rounded-full bg-emerald-400/40 animate-ping"></div>
-                                <div className="p-2 rounded-full bg-emerald-500 text-forest-950 shadow-lg">
+                                <div className="p-2 rounded-full bg-emerald-500 text-white shadow-lg">
                                   <MapPin className="h-5 w-5" />
                                 </div>
                               </div>
-                              <span className="mt-1 text-[11px] font-bold text-white bg-forest-950/90 px-2.5 py-0.5 rounded-full border border-emerald-400/30">
+                              <span className="mt-1.5 text-xs font-bold text-white bg-slate-950/95 px-3 py-0.5 rounded-full border border-slate-700 shadow-md">
                                 Welcome to Inverness East
                               </span>
                             </div>
                           </div>
-                          <p className="text-xs text-emerald-200 font-semibold">One-Tap Live Mobile GPS Locate Me & Postcode Search</p>
+                          <p className="text-xs text-emerald-400 font-bold">One-Tap Live Mobile GPS Locate Me & Postcode Search</p>
                         </div>
                       )}
 
@@ -653,19 +642,19 @@ export default function MarketingVideoStudioPage() {
                       {currentScene.id === 4 && (
                         <div className="w-full max-w-md space-y-2.5 text-left">
                           <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="p-3 rounded-xl bg-forest-900/90 border border-emerald-500/40 space-y-1">
+                            <div className="p-3 rounded-xl bg-slate-900 border border-slate-700 shadow-md space-y-1">
                               <ShoppingBag className="h-5 w-5 text-amber-400" />
                               <p className="font-bold text-white text-xs">Highland Bakery</p>
-                              <Badge className="bg-emerald-500/20 text-emerald-300 text-[9px] border-emerald-500/40">Courier Delivery</Badge>
+                              <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] border border-emerald-500/40">Doorstep Courier</Badge>
                             </div>
-                            <div className="p-3 rounded-xl bg-forest-900/90 border border-emerald-500/40 space-y-1">
+                            <div className="p-3 rounded-xl bg-slate-900 border border-slate-700 shadow-md space-y-1">
                               <Calendar className="h-5 w-5 text-blue-400" />
                               <p className="font-bold text-white text-xs">Farmers Market</p>
-                              <Badge className="bg-blue-500/20 text-blue-300 text-[9px] border-blue-500/40">This Saturday</Badge>
+                              <Badge className="bg-blue-500/20 text-blue-300 text-[10px] border border-blue-500/40">This Saturday</Badge>
                             </div>
                           </div>
-                          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-center text-[11px] text-emerald-200">
-                            Local Jobs • Accommodation • Neighbour Buy, Swap & Sell
+                          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-center text-xs text-slate-200">
+                            Local Jobs • Community Charities • Neighbour Buy, Swap & Sell
                           </div>
                         </div>
                       )}
@@ -673,19 +662,19 @@ export default function MarketingVideoStudioPage() {
                       {/* Scene 5: Civic Voice & Emergency Resilience */}
                       {currentScene.id === 5 && (
                         <div className="w-full max-w-md space-y-2.5 text-left">
-                          <div className="p-3 rounded-xl bg-forest-900/90 border border-amber-500/50 shadow-xl space-y-2">
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-amber-500/50 shadow-xl space-y-2.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black uppercase text-amber-400 flex items-center gap-1.5">
-                                <ShieldAlert className="h-3.5 w-3.5" /> CEAP Civil Resilience Engine
+                              <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-1.5">
+                                <ShieldAlert className="h-4 w-4" /> CEAP Civil Resilience Engine
                               </span>
-                              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[9px]">Amber Ready</Badge>
+                              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[10px] font-bold">Amber Ready</Badge>
                             </div>
-                            <div className="p-2 rounded-lg bg-white/5 text-[11px] text-slate-200">
-                              Volunteer Roster: <strong>4x4 Drivers, Emergency Generators & Radio Operators</strong>
+                            <div className="p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-slate-200 leading-snug">
+                              Volunteer Asset Roster: <strong>4x4 Drivers, Generators & Radio Operators</strong>
                             </div>
-                            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center justify-between">
+                            <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-xs text-emerald-300 flex items-center justify-between font-medium">
                               <span>Leader Revenue Share</span>
-                              <strong className="text-white">40%+ Reinvested</strong>
+                              <strong className="text-white font-bold">40%+ Reinvested</strong>
                             </div>
                           </div>
                         </div>
@@ -693,17 +682,17 @@ export default function MarketingVideoStudioPage() {
 
                       {/* Scene 6: Call to Action */}
                       {currentScene.id === 6 && (
-                        <div className="space-y-3.5 max-w-md">
-                          <div className="inline-flex p-3 rounded-2xl bg-amber-500 text-forest-950 font-black text-2xl shadow-xl">
+                        <div className="space-y-4 max-w-md">
+                          <div className="inline-flex p-3 rounded-2xl bg-primary text-primary-foreground font-black text-2xl shadow-xl">
                             CH
                           </div>
                           <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight font-headline">
                             Community Hub
                           </h2>
-                          <p className="text-sm text-emerald-300 font-bold uppercase tracking-wider">
+                          <p className="text-sm text-emerald-400 font-bold uppercase tracking-wider">
                             Your Town, Connected.
                           </p>
-                          <div className="inline-block px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-amber-300 font-mono text-sm font-bold shadow-lg">
+                          <div className="inline-block px-5 py-2.5 rounded-xl bg-slate-900 text-amber-300 font-mono text-sm font-bold border border-slate-700 shadow-xl">
                             my-community-hub.co.uk
                           </div>
                         </div>
@@ -714,11 +703,11 @@ export default function MarketingVideoStudioPage() {
 
                 </div>
 
-                {/* Subtitles Overlay */}
+                {/* High-Contrast Subtitles Overlay */}
                 {showSubtitles && (
                   <div className="relative z-20 px-4 pb-3 flex justify-center">
-                    <div className="max-w-2xl bg-slate-950/85 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-xl shadow-xl text-center">
-                      <p className="text-xs sm:text-sm font-semibold text-white leading-tight">
+                    <div className="max-w-2xl bg-black/90 backdrop-blur-md border border-white/20 px-4 py-2 rounded-xl shadow-2xl text-center">
+                      <p className="text-xs sm:text-sm font-bold text-white leading-snug">
                         {currentScene.subtitle}
                       </p>
                     </div>
@@ -729,12 +718,12 @@ export default function MarketingVideoStudioPage() {
 
             </div>
 
-            {/* Bottom Timeline & Player Controls */}
-            <div className="p-3 sm:p-4 bg-forest-900 border-t border-emerald-800/80 text-white flex flex-col gap-3">
+            {/* Bottom Timeline & Player Controls Bar */}
+            <div className="p-4 bg-card border-t border-border text-foreground flex flex-col gap-3.5">
               
               {/* Timeline Slider with Timestamps */}
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-emerald-200 font-bold w-12 text-right">
+                <span className="text-xs font-mono font-bold text-foreground w-12 text-right">
                   {formatTime(currentTime)}
                 </span>
                 <Slider
@@ -744,19 +733,19 @@ export default function MarketingVideoStudioPage() {
                   onValueChange={([val]) => handleSeek(val)}
                   className="flex-1 cursor-pointer"
                 />
-                <span className="text-xs font-mono text-emerald-200 font-bold w-12">
+                <span className="text-xs font-mono font-bold text-foreground w-12">
                   {formatTime(totalDuration)}
                 </span>
               </div>
 
-              {/* Main Control Buttons Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2.5">
+              {/* Main Control Buttons */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 
                 {/* Play / Pause / Reset */}
                 <div className="flex items-center gap-2">
                   <Button
                     onClick={togglePlay}
-                    className="bg-amber-500 hover:bg-amber-400 text-forest-950 font-black text-xs gap-1.5 h-8 px-4 shadow"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5 h-8 px-4 shadow"
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                     <span>{isPlaying ? 'Pause' : 'Play Preview'}</span>
@@ -766,7 +755,7 @@ export default function MarketingVideoStudioPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleReset}
-                    className="h-8 w-8 text-emerald-200 border-emerald-700 hover:text-white"
+                    className="h-8 w-8 text-foreground"
                     title="Restart from beginning"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
@@ -774,7 +763,7 @@ export default function MarketingVideoStudioPage() {
 
                   {/* Playback Speed */}
                   <Select value={String(playbackSpeed)} onValueChange={(val) => setPlaybackSpeed(Number(val))}>
-                    <SelectTrigger className="h-8 w-18 text-xs bg-forest-950 border-emerald-700 text-white">
+                    <SelectTrigger className="h-8 w-18 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -786,21 +775,21 @@ export default function MarketingVideoStudioPage() {
                 </div>
 
                 {/* Scene Jump Pills */}
-                <div className="hidden sm:flex items-center gap-1 overflow-x-auto max-w-md py-1">
+                <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto max-w-md py-1">
                   {activeScenes.map((scene) => (
                     <Button
                       key={scene.id}
-                      variant="ghost"
+                      variant={currentScene.id === scene.id ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => handleSeek(scene.start)}
                       className={cn(
-                        "h-7 px-2 text-[10px] font-bold rounded-lg transition",
+                        "h-7 px-2.5 text-xs font-bold rounded-lg transition",
                         currentScene.id === scene.id 
-                          ? "bg-amber-500 text-forest-950 hover:bg-amber-400" 
-                          : "text-emerald-300 hover:bg-forest-950 hover:text-white"
+                          ? "bg-primary text-primary-foreground shadow" 
+                          : "text-foreground hover:bg-muted"
                       )}
                     >
-                      S{scene.id}
+                      Scene {scene.id}
                     </Button>
                   ))}
                 </div>
@@ -808,14 +797,12 @@ export default function MarketingVideoStudioPage() {
                 {/* Subtitles & Volume */}
                 <div className="flex items-center gap-2">
                   <Button
-                    variant="outline"
+                    variant={showSubtitles ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowSubtitles(!showSubtitles)}
-                    className={cn(
-                      "h-8 text-xs font-semibold border-emerald-700",
-                      showSubtitles ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400"
-                    )}
+                    className="h-8 text-xs font-semibold gap-1.5"
                   >
+                    <Subtitles className="h-3.5 w-3.5" />
                     Subtitles: {showSubtitles ? 'ON' : 'OFF'}
                   </Button>
 
@@ -823,7 +810,7 @@ export default function MarketingVideoStudioPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setIsMuted(!isMuted)}
-                    className="h-8 w-8 text-emerald-200 hover:text-white"
+                    className="h-8 w-8 text-foreground"
                   >
                     {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   </Button>
@@ -837,21 +824,21 @@ export default function MarketingVideoStudioPage() {
 
         </div>
 
-        {/* Right Column: Audio Hub Integration & Scene Controls (Hidden in Clean Record Mode) */}
+        {/* Right Column: Audio Hub Integration & Scene Controls */}
         {!isCleanRecordMode && (
           <div className="lg:col-span-4 flex flex-col gap-5">
             
-            {/* Audio Hub Voice-Over Card */}
-            <Card className="border-emerald-800/60 bg-card shadow-sm">
-              <CardHeader className="pb-3 border-b border-border/50">
+            {/* Audio Hub Voice Engine Card */}
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/60">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                     <Mic className="h-4 w-4 text-primary" />
                     Audio Hub Voice Engine
                   </CardTitle>
-                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Live TTS Flow</Badge>
+                  <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary">Live TTS</Badge>
                 </div>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-muted-foreground">
                   Generate narrative speech using the high-quality voices from your Audio Hub.
                 </CardDescription>
               </CardHeader>
@@ -861,12 +848,12 @@ export default function MarketingVideoStudioPage() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-foreground">Select Voice Character</label>
                   <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-                    <SelectTrigger className="w-full text-xs">
+                    <SelectTrigger className="w-full text-xs text-foreground bg-background">
                       <SelectValue placeholder="Select Audio Hub voice..." />
                     </SelectTrigger>
                     <SelectContent>
                       {AUDIO_HUB_VOICES.map(voice => (
-                        <SelectItem key={voice.value} value={voice.value} className="text-xs">
+                        <SelectItem key={voice.value} value={voice.value} className="text-xs text-foreground">
                           {voice.label}
                         </SelectItem>
                       ))}
@@ -895,9 +882,9 @@ export default function MarketingVideoStudioPage() {
 
                 {/* Choose Pre-existing Audio Tour from Audio Hub */}
                 {availableAudioTours.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t border-border/50">
+                  <div className="space-y-1.5 pt-2 border-t border-border/60">
                     <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Music className="h-3.5 w-3.5 text-emerald-600" />
+                      <Music className="h-3.5 w-3.5 text-primary" />
                       Or Pick Existing Audio Hub Track
                     </label>
                     <Select 
@@ -912,13 +899,13 @@ export default function MarketingVideoStudioPage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full text-xs">
+                      <SelectTrigger className="w-full text-xs text-foreground bg-background">
                         <SelectValue placeholder="Choose an audio tour..." />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">-- None (Use timeline) --</SelectItem>
                         {availableAudioTours.map(t => (
-                          <SelectItem key={t.id} value={t.id} className="text-xs truncate">
+                          <SelectItem key={t.id} value={t.id} className="text-xs text-foreground truncate">
                             {t.title}
                           </SelectItem>
                         ))}
@@ -928,9 +915,9 @@ export default function MarketingVideoStudioPage() {
                 )}
 
                 {/* Manual Audio File Upload */}
-                <div className="space-y-1.5 pt-2 border-t border-border/50">
+                <div className="space-y-1.5 pt-2 border-t border-border/60">
                   <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <Upload className="h-3.5 w-3.5 text-blue-500" />
+                    <Upload className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                     Load Local MP3 / WAV
                   </label>
                   <input
@@ -945,22 +932,22 @@ export default function MarketingVideoStudioPage() {
             </Card>
 
             {/* Scene Script & Screenshot Customizer */}
-            <Card className="border-border/60 bg-card shadow-sm">
-              <CardHeader className="pb-3 border-b border-border/50">
-                <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/60">
+                <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                   <FileText className="h-4 w-4 text-amber-500" />
                   Scene {currentScene.id} Inspector
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-muted-foreground">
                   Review the exact script and replace mockups with real logged-in screenshots.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pt-4 space-y-3">
+              <CardContent className="pt-4 space-y-3.5">
                 
                 {/* Voice-Over Text */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Voice-Over Script</span>
-                  <p className="text-xs bg-muted/50 p-2.5 rounded-lg border border-border/60 leading-relaxed text-foreground italic">
+                  <p className="text-xs bg-muted p-3 rounded-lg border border-border leading-relaxed text-foreground font-medium italic">
                     &quot;{currentScene.voiceOver}&quot;
                   </p>
                 </div>
@@ -968,24 +955,24 @@ export default function MarketingVideoStudioPage() {
                 {/* On-Screen Text */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">On-Screen Caption</span>
-                  <div className="text-xs bg-muted/30 p-2 rounded-lg border border-border/60 font-semibold text-foreground">
+                  <div className="text-xs bg-muted/60 p-2.5 rounded-lg border border-border font-semibold text-foreground">
                     {currentScene.onScreenText}
                   </div>
                 </div>
 
                 {/* Custom Screenshot Slot */}
-                <div className="space-y-1.5 pt-2 border-t border-border/50">
+                <div className="space-y-1.5 pt-2 border-t border-border/60">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Scene {currentScene.id} Custom Screenshot</span>
                     {customScreenshots[currentScene.id] && (
-                      <span className="text-emerald-600 font-bold">✓ Attached</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓ Attached</span>
                     )}
                   </span>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleScreenshotUpload(currentScene.id, e)}
-                    className="block w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-500/10 file:text-amber-700 dark:file:text-amber-400 hover:file:bg-amber-500/20 cursor-pointer"
+                    className="block w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
                   />
                   {customScreenshots[currentScene.id] && (
                     <Button
@@ -996,7 +983,7 @@ export default function MarketingVideoStudioPage() {
                         delete copy[currentScene.id];
                         return copy;
                       })}
-                      className="text-[10px] h-6 text-destructive hover:bg-destructive/10 px-2"
+                      className="text-[10px] h-6 text-destructive hover:bg-destructive/10 px-2 font-bold"
                     >
                       Clear custom image (Revert to UI card)
                     </Button>
