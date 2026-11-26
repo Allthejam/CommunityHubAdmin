@@ -267,32 +267,65 @@ export default function AudioHubPage() {
     }
   };
   
-  const playAudio = (audioUrl: string, id: string) => {
+  const playAudio = async (audioUrl: string, id: string) => {
     if (playingId === id) {
-      audioRef.current?.pause();
-      audioRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
       setPlayingId(null);
       return;
     }
     
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current = null;
+    }
+
+    if (!audioUrl) {
+      toast({
+        title: "No Audio Generated",
+        description: "This audio tab does not have a sound recording yet. Click 'Synthesize with AI' to generate voice.",
+        variant: "destructive"
+      });
+      return;
     }
 
     setPlayingId(id);
     
     try {
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-      audio.play();
+      let audio = audioRef.current;
+      if (!audio) {
+        audio = new Audio();
+        audioRef.current = audio;
+      }
+      audio.preload = 'auto';
+      audio.src = audioUrl;
+      audio.load();
       audio.onended = () => setPlayingId(null);
-      audio.onerror = () => {
-        toast({ title: "Playback Error", description: "Unable to play audio stream.", variant: "destructive" });
+      audio.onerror = (e) => {
+        console.error("Audio playback error:", e, audio?.error);
+        toast({ 
+          title: "Playback Error", 
+          description: `Unable to play audio: ${audio?.error?.message || 'Media file could not be loaded.'}`, 
+          variant: "destructive" 
+        });
         setPlayingId(null);
       };
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to initialize audio player.", variant: "destructive" });
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        await playPromise.catch((err) => {
+          console.warn("audio.play() rejected:", err);
+          toast({ 
+            title: "Playback Blocked", 
+            description: err.message || "Browser prevented audio autoplay. Please check your sound settings.", 
+            variant: "destructive" 
+          });
+          setPlayingId(null);
+        });
+      }
+    } catch (err: any) {
+      console.error("Audio player initialization failed:", err);
+      toast({ title: "Error", description: err.message || "Failed to initialize audio player.", variant: "destructive" });
       setPlayingId(null);
     }
   };
@@ -400,6 +433,9 @@ export default function AudioHubPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Hidden Persistent Audio Player */}
+      <audio ref={audioRef} preload="auto" className="hidden" />
+
       {/* Studio Hero Banner */}
       <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-purple-600/15 via-fuchsia-600/10 to-indigo-600/15 border-2 border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-md relative overflow-hidden">
         <div>

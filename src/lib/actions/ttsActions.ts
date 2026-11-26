@@ -64,10 +64,10 @@ export async function generateAndSaveAudioAction(params: {
     const publicUrl = file.publicUrl();
     
     const tourRef = firestore.collection('audioTours').doc(tourId);
-    await tourRef.update({ 
+    await tourRef.set({ 
         audioUrl: publicUrl,
         updatedAt: Date.now() 
-    });
+    }, { merge: true });
 
     return { success: true, url: publicUrl };
 

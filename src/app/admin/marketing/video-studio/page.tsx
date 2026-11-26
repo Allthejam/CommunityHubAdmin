@@ -230,6 +230,18 @@ export default function MarketingVideoStudioPage() {
         audioUrl: doc.data().audioUrl
       })).filter(t => !!t.audioUrl);
       setAvailableAudioTours(tours);
+
+      // Auto-attach the first available audio tour if none is loaded yet
+      if (tours.length > 0) {
+        setSelectedTourId(prevId => {
+          if (prevId === 'none' || !prevId) {
+            const firstTour = tours[0];
+            setAudioUrl(prevUrl => prevUrl || firstTour.audioUrl || null);
+            return firstTour.id;
+          }
+          return prevId;
+        });
+      }
     }, (error) => {
       console.warn('[Video Studio] Could not load audio tours from Firestore:', error);
     });
@@ -354,6 +366,7 @@ export default function MarketingVideoStudioPage() {
         setAudioUrl(res.url);
         if (audioRef.current) {
           audioRef.current.src = res.url;
+          audioRef.current.load();
         }
         toast({
           title: "Audio Generation Complete!",
